@@ -197,3 +197,8 @@ File edits display a diff and require approval. Commands require approval. Git c
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+
+## MemeCode 2.0.1 — Memingo plan preview
+
+The `.mgo` plan validator at `src/memecode_planner.mgo` accepts a JSON plan through `MEMECODE_PLAN_JSON`, validates paths and operation limits, and prints a preview. This stage is read-only: it does not create or replace files. See [docs/MEMINGO_PLANNER.md](docs/MEMINGO_PLANNER.md).
