@@ -79,7 +79,7 @@ case "${1:-}" in
     exec sh "$APP_DIR/install.sh" uninstall
     ;;
   help|-h|--help)
-    echo "Uso: memecode [doctor|update|uninstall|--chat|tarea...]"
+    echo "Uso: memecode [setup|doctor|update|uninstall|--chat|tarea...]"
     echo "Sin argumentos: abre el chat en la carpeta actual."
     echo "Ejemplo: memecode --workspace . 'Revisa este proyecto'"
     ;;
