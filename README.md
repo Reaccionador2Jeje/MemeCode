@@ -86,6 +86,8 @@ Useful commands on all platforms:
 ```text
 memecode
 memecode doctor
+memecode neural --help
+memecode-neural --list
 memecode update
 memecode uninstall
 memecode "Inspect this project and explain its structure"
