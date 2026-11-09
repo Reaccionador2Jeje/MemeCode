@@ -104,12 +104,18 @@ vibe requested_path = env("MEMECODE_PATH", "")
 
 when action == "status" {
     show_status()
-} nah when action == "list" {
-    list_workspace()
-} nah when action == "read" {
-    read_workspace_file(requested_path)
-} nah when action == "help" {
-    show_help()
 } nah {
-    spill "MemeCode: acción desconocida. Usa MEMECODE_ACTION=help."
+    when action == "list" {
+        list_workspace()
+    } nah {
+        when action == "read" {
+            read_workspace_file(requested_path)
+        } nah {
+            when action == "help" {
+                show_help()
+            } nah {
+                spill "MemeCode: acción desconocida. Usa MEMECODE_ACTION=help."
+            }
+        }
+    }
 }
