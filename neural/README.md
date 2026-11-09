@@ -30,6 +30,14 @@ python -m neural.train --steps 30 --batch-size 2 --block-size 64 --eval-batches 
 
 The first training run creates `neural/checkpoints/memecode-neural.pt`. The checkpoint is a local generated artifact and should not be committed to Git.
 
+Generation now supports top-k sampling and stops when it emits the EOS token. Example:
+
+```bash
+python -m neural.generate "¿Qué es Memingo?" --tokens 120 --temperature 0.8 --top-k 40
+```
+
+Use `--top-k 0` to disable top-k filtering. Lower temperature makes sampling more conservative; it does not make the model more knowledgeable.
+
 ## Add training examples
 
 Append one JSON object per line to `neural/dataset/examples.jsonl`:
