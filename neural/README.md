@@ -63,3 +63,38 @@ python -m unittest tests.test_neural
 - The starter dataset is only for learning and smoke tests; it is far too small for reliable coding assistance.
 - Training from scratch requires substantial data, compute, and evaluation.
 - The model generates text only. It does not safely execute shell commands or modify projects.
+
+
+## Local coding agent (experimental)
+
+MemeCode Neural includes a local command-driven coding agent. It does not contact an AI provider.
+
+From the repository root:
+
+```bash
+# List project files
+python -m neural.agent --workspace . --list
+
+# Read a project file
+python -m neural.agent --workspace . --read README.md
+
+# Ask the locally trained model (requires a checkpoint)
+python -m neural.agent --workspace . --task "Explica este proyecto"
+
+# Create a new file; explicit confirmation flag is required
+python -m neural.agent --workspace . --new notes.txt "Notas del proyecto" --yes
+
+# Run the fixed unittest discovery command; explicit confirmation is required
+python -m neural.agent --workspace . --test --yes
+```
+
+### Safety and current capabilities
+
+- The model's generated text is never interpreted as a command or tool call.
+- File creation is limited to new files inside the workspace; overwriting is refused.
+- File reads reject common secret-file names and files larger than 256 KB.
+- Path traversal outside the workspace is rejected.
+- Test execution uses a fixed Python unittest command, no shell, and requires `--yes`.
+- There is no arbitrary shell tool, network tool, automatic Git push, or autonomous code editing.
+- Without a trained checkpoint, the local tools still work, but natural-language model answers are unavailable.
+- This is an early, command-driven agent, not yet an autonomous coding assistant. The tiny starter model is not expected to reliably understand or write programs.
