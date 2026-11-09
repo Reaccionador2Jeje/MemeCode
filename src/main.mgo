@@ -1,7 +1,7 @@
 # MemeCode — punto de entrada en Memingo
 vibe memecode_name = "MemeCode"
-vibe memecode_version = "0.1.0"
-vibe memecode_status = "foundation"
+vibe memecode_version = "0.2.0"
+vibe memecode_status = "memingo-core-ready"
 
 ritual show_banner() {
     spill "================================"
@@ -12,8 +12,9 @@ ritual show_banner() {
 
 ritual show_status() {
     spill "Estado: " + memecode_status
-    spill "Puente del sistema: runtime/host_bridge.py"
-    spill "La autonomia con IA se incorporara en la siguiente etapa."
+    spill "Nucleo de politica: src/agent_core.mgo"
+    spill "Adaptador de herramientas: runtime/agent.py"
+    spill "La planificacion y las reglas principales se definen en Memingo."
 }
 
 show_banner()
