@@ -23,7 +23,7 @@ def load_dataset(path: Path) -> list[int]:
                 raise ValueError(f"JSON inválido en línea {line_number}: {exc}") from exc
             if not isinstance(item, dict) or not isinstance(item.get("prompt"), str) or not isinstance(item.get("response"), str):
                 raise ValueError(f"La línea {line_number} necesita prompt y response de texto.")
-            sample = f"Usuario: {item['prompt'].strip()}\\nMemeCode: {item['response'].strip()}\\n"
+            sample = f"Usuario: {item['prompt'].strip()}\nMemeCode: {item['response'].strip()}\n"
             tokens.extend([BOS, *encode(sample), EOS])
     if len(tokens) < 3:
         raise ValueError("El dataset está vacío o no contiene ejemplos suficientes.")
