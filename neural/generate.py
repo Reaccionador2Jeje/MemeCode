@@ -37,7 +37,7 @@ def main() -> int:
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
     start = torch.tensor(
-        [[BOS, *encode(f"Usuario: {args.prompt}\\nMemeCode:")]],
+        [[BOS, *encode(f"Usuario: {args.prompt}\nMemeCode:")]],
         dtype=torch.long,
         device=device,
     )
