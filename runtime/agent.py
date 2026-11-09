@@ -500,7 +500,9 @@ def main() -> int:
             return 2
         model = args.model or settings["MEMECODE_MODEL"]
         base_url = args.base_url or settings["MEMECODE_BASE_URL"]
-        core=load_memingo_core(root)
+        # El nucleo .mgo pertenece a la instalacion de MemeCode, no al workspace del usuario.
+        memecode_root = Path(__file__).resolve().parents[1]
+        core = load_memingo_core(memecode_root)
         prompt = build_system_prompt(core)
         steps = max(1, min(args.max_steps, 12))
 
