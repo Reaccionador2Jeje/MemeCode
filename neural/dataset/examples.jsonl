@@ -8,3 +8,23 @@
 {"prompt":"¿Qué es un modelo Transformer?","response":"Es una arquitectura de red neuronal que utiliza mecanismos de atención para procesar secuencias."}
 {"prompt":"¿Cómo entreno MemeCode Neural?","response":"Añade ejemplos revisados al dataset JSONL y ejecuta python -m neural.train."}
 {"prompt":"¿MemeCode Neural necesita una API key?","response":"No. El entrenamiento y la generación de este prototipo se ejecutan localmente con Python y PyTorch."}
+{"prompt":"¿Cómo creo un archivo en Python?","response":"Usa open('archivo.txt', 'w', encoding='utf-8') para crear o reemplazar un archivo de texto. Usa with para cerrarlo automáticamente."}
+{"prompt":"¿Cómo leo un archivo de texto?","response":"Abre el archivo en modo lectura: with open('archivo.txt', 'r', encoding='utf-8') as archivo: contenido = archivo.read()."}
+{"prompt":"¿Qué es una excepción?","response":"Una excepción es un evento que interrumpe el flujo normal de un programa. Puedes manejarla con try y except."}
+{"prompt":"¿Cómo manejo errores en Python?","response":"Usa try para el código que podría fallar y except para manejar el error. Captura tipos específicos cuando sea posible."}
+{"prompt":"¿Qué significa JSON?","response":"JSON es un formato de texto para representar datos estructurados mediante objetos, arreglos, cadenas, números, booleanos y null."}
+{"prompt":"¿Cómo cargo JSON en Python?","response":"Usa el módulo estándar json. Por ejemplo: import json; datos = json.loads(texto)."}
+{"prompt":"¿Qué es una API?","response":"Una API es una interfaz que permite que dos programas se comuniquen mediante reglas y formatos definidos."}
+{"prompt":"¿Qué es una prueba unitaria?","response":"Es una prueba pequeña que verifica una unidad de código, como una función, para comprobar que produce el resultado esperado."}
+{"prompt":"¿Cómo creo una clase en Python?","response":"Usa class NombreClase: y define métodos dentro. El método inicializador suele llamarse __init__."}
+{"prompt":"¿Qué es una lista en Python?","response":"Una lista es una colección ordenada y modificable. Se crea con corchetes, por ejemplo: numeros = [1, 2, 3]."}
+{"prompt":"¿Qué es un diccionario?","response":"Un diccionario guarda pares clave-valor. Ejemplo: usuario = {'nombre': 'Cris', 'activo': True}."}
+{"prompt":"¿Cómo instalo una dependencia?","response":"En un entorno Python compatible puedes instalar una dependencia con python -m pip install nombre-paquete."}
+{"prompt":"¿Qué es un entorno virtual?","response":"Es un entorno aislado para instalar dependencias de un proyecto sin modificar los paquetes de otros proyectos."}
+{"prompt":"¿Cómo creo un entorno virtual?","response":"Ejecuta python -m venv .venv y actívalo siguiendo las instrucciones correspondientes a tu sistema operativo."}
+{"prompt":"¿Qué es un token en un modelo de lenguaje?","response":"Un token es una unidad que el modelo procesa. Puede representar un carácter, parte de una palabra o un símbolo."}
+{"prompt":"¿Qué es el entrenamiento supervisado?","response":"Es un método de aprendizaje en el que el modelo recibe ejemplos de entrada junto con respuestas esperadas."}
+{"prompt":"¿Qué es una época de entrenamiento?","response":"Una época es una pasada completa por todos los ejemplos del conjunto de entrenamiento."}
+{"prompt":"¿Qué significa pérdida o loss?","response":"La pérdida mide qué tan diferente es la predicción del modelo respecto al objetivo. Durante el entrenamiento se intenta reducirla."}
+{"prompt":"¿Por qué un dataset pequeño es limitado?","response":"Con pocos ejemplos el modelo puede memorizar patrones y producir respuestas incoherentes fuera de ellos. Necesita datos variados y revisados."}
+{"prompt":"¿MemeCode Neural puede ejecutar comandos?","response":"El prototipo de modelo solo genera texto. No debe ejecutar comandos por sí mismo; esa capacidad requiere una capa de herramientas separada y controles de seguridad."}
