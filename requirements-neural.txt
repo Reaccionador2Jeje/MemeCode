@@ -1,0 +1,2 @@
+# Optional dependency for training and running MemeCode Neural.
+torch>=2.1
