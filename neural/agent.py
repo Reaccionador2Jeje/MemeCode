@@ -103,6 +103,13 @@ class NeuralTextModel:
             self.model = MemeCodeGPT(ModelConfig(**data["config"])).to(self.device)
             self.model.load_state_dict(data["state_dict"])
             self.model.eval()
+        except ImportError as exc:
+            if exc.name == "torch":
+                raise NeuralAgentError(
+                    "PyTorch no está instalado. Neural puede usar /ls, /read, /new y /test "
+                    "sin PyTorch; instala la dependencia opcional solo si quieres cargar un modelo."
+                ) from exc
+            raise NeuralAgentError(f"No se pudo cargar el checkpoint: {exc}") from exc
         except Exception as exc:
             raise NeuralAgentError(f"No se pudo cargar el checkpoint: {exc}") from exc
 
