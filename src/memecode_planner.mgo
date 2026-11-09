@@ -4,7 +4,7 @@
 #
 # Este modulo valida y muestra planes. NO escribe ni ejecuta nada.
 
-vibe secret_names = [".env", ".env.local", ".env.production", "id_rsa", "id_ed25519"]
+vibe secret_names = [".env", ".env.local", ".env.production", "id_rsa", "id_ed25519", ".git", ".memecode", ".venv", "node_modules", "__pycache__"]
 
 ritual is_secret_part(part) {
     when contains(secret_names, part) {
