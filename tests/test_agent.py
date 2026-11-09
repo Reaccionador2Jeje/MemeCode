@@ -188,5 +188,38 @@ class AgentToolTests(unittest.TestCase):
         self.assertIn("inspect", config["workflow"])
         self.assertGreater(len(config["policy"]), 0)
 
+
+    def test_auto_creates_private_config_and_example(self):
+        from runtime.agent import setup_provider_config, config_file
+        with patch.dict("os.environ", {"XDG_CONFIG_HOME": str(self.root / "config")}, clear=False):
+            values = setup_provider_config(interactive=False)
+            path = config_file()
+            self.assertTrue(path.is_file())
+            self.assertTrue((path.parent / ".env.example").is_file())
+            self.assertEqual(values["MEMECODE_API_KEY"], "")
+            self.assertEqual(values["MEMECODE_MODEL"], "gpt-4o-mini")
+            if __import__("os").name != "nt":
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_config_round_trip_and_environment_override(self):
+        import os
+        from runtime.agent import _write_config, provider_settings, config_file
+        config_home = self.root / "config"
+        with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(config_home), "MEMECODE_API_KEY": "env-key"}, clear=False):
+            path = config_file()
+            _write_config(path, {"MEMECODE_API_KEY": "file-key", "MEMECODE_MODEL": "sample-model", "MEMECODE_BASE_URL": "https://example.test/v1"})
+            settings = provider_settings()
+            self.assertEqual(settings["MEMECODE_API_KEY"], "env-key")
+            self.assertEqual(settings["MEMECODE_MODEL"], "sample-model")
+            self.assertEqual(settings["MEMECODE_BASE_URL"], "https://example.test/v1")
+
+    def test_setup_rejects_invalid_model_and_url(self):
+        from runtime.agent import setup_provider_config, AgentError
+        with patch.dict("os.environ", {"XDG_CONFIG_HOME": str(self.root / "config")}, clear=False), \
+             patch("runtime.agent.getpass.getpass", return_value="sample-key"), \
+             patch("builtins.input", side_effect=["bad model", "https://example.test/v1"]):
+            with self.assertRaises(AgentError):
+                setup_provider_config(interactive=True, force=True)
+
 if __name__=="__main__":
     unittest.main()
