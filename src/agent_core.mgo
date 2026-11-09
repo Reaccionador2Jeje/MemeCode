@@ -31,7 +31,11 @@ ritual build_capabilities() {
         {name: "run_command", description: "Ejecuta comandos aprobados por el usuario."},
         {name: "git_status", description: "Consulta el estado Git sin modificarlo."},
         {name: "git_diff", description: "Consulta diferencias Git sin modificarlas."},
-        {name: "git_log", description: "Consulta los ultimos commits sin modificarlos."}
+        {name: "git_log", description: "Consulta los ultimos commits sin modificarlos."},
+        {name: "git_branch_create", description: "Crea y cambia a una rama local solo con aprobacion."},
+        {name: "git_commit", description: "Crea un commit local de cambios preparados solo con aprobacion."},
+        {name: "github_repo_info", description: "Consulta metadatos publicos de un repositorio GitHub."},
+        {name: "github_branches", description: "Lista ramas publicas de un repositorio GitHub."}
     ]
 }
 
