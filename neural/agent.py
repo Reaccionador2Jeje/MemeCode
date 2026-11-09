@@ -12,6 +12,8 @@ import subprocess
 import sys
 from typing import Any
 
+from neural.planner import PlanError, apply_plan, parse_plan, preview_plan
+
 MAX_FILE_BYTES = 256_000
 SECRET_NAMES = {".env", ".env.local", "id_rsa", "id_ed25519"}
 
@@ -123,6 +125,8 @@ def main() -> int:
     parser.add_argument("--workspace", default=".")
     parser.add_argument("--checkpoint", default="neural/checkpoints/memecode-neural.pt")
     parser.add_argument("--task", help="Pregunta para el modelo local")
+    parser.add_argument("--draft", help="Generar un plan JSON de cambios con Neural")
+    parser.add_argument("--apply-plan", metavar="RUTA", help="Revisar/aplicar un plan JSON guardado dentro del workspace")
     parser.add_argument("--list", action="store_true", help="Listar archivos")
     parser.add_argument("--read", metavar="RUTA", help="Leer un archivo")
     parser.add_argument("--new", nargs=2, metavar=("RUTA", "CONTENIDO"), help="Crear un archivo nuevo")
@@ -141,13 +145,34 @@ def main() -> int:
             print(create_project_file(root, args.new[0], args.new[1], approve=args.yes))
         elif args.test:
             print(run_project_tests(root, approve=args.yes))
+        elif args.apply_plan:
+            raw_plan = read_project_file(root, args.apply_plan)
+            plan = parse_plan(raw_plan)
+            print("Plan:", plan["summary"])
+            print("\\n".join(preview_plan(root, plan)))
+            if args.yes:
+                print("\\n".join(apply_plan(root, plan, approve=True)))
+            else:
+                print("Vista previa solamente. Añade --yes después de revisar el plan.")
+        elif args.draft:
+            model = NeuralTextModel(Path(args.checkpoint))
+            files = list_project_files(root, limit=40)
+            prompt = (
+                "Devuelve SOLO JSON válido, sin Markdown. Esquema: "
+                '{"version":1,"summary":"resumen","operations":['
+                '{"action":"create_file","path":"ruta/relativa","content":"texto completo"}]}. '
+                "Acciones permitidas: create_file o replace_file. Máximo 3 operaciones. "
+                "No uses shell, red, secretos ni rutas fuera del proyecto. "
+                f"Tarea: {args.draft}. Archivos existentes: {json.dumps(files, ensure_ascii=False)}"
+            )
+            print(model.answer(prompt, max_tokens=256))
         elif args.task:
             model = NeuralTextModel(Path(args.checkpoint))
             print(model.answer(args.task))
         else:
             parser.print_help()
         return 0
-    except (NeuralAgentError, OSError, UnicodeError) as exc:
+    except (NeuralAgentError, PlanError, OSError, UnicodeError) as exc:
         print(f"MemeCode Neural Agent: {exc}", file=sys.stderr)
         return 1
 
