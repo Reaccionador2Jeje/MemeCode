@@ -96,10 +96,28 @@ class AgentToolTests(unittest.TestCase):
         self.assertEqual(open_url.call_args.args[0].method, "GET")
 
     def test_branch_creation_requires_approval(self):
-        (self.root / ".git").mkdir()
+        import subprocess
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
         with patch("runtime.agent._approve", return_value=False):
             result = git_mutation(self.root, "branch", {"name": "feature/demo"})
         self.assertIn("declined", result)
+        current = subprocess.run(["git", "branch", "--show-current"], cwd=self.root,
+                                 capture_output=True, text=True, check=True)
+        self.assertNotEqual(current.stdout.strip(), "feature/demo")
+
+    def test_commit_requires_approval(self):
+        import subprocess
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.name", "MemeCode Test"], cwd=self.root, check=True)
+        (self.root / "demo.txt").write_text("demo", encoding="utf-8")
+        subprocess.run(["git", "add", "demo.txt"], cwd=self.root, check=True)
+        with patch("runtime.agent._approve", return_value=False):
+            result = git_mutation(self.root, "commit", {"message": "Add demo"})
+        self.assertIn("declined", result)
+        log = subprocess.run(["git", "log", "-1", "--oneline"], cwd=self.root,
+                             capture_output=True, text=True)
+        self.assertNotEqual(log.returncode, 0)
 
     def test_rejects_invalid_branch_name(self):
         (self.root / ".git").mkdir()
