@@ -32,7 +32,7 @@ jobs:
       - name: Validate Memingo core
         run: memingo check src
       - name: Compile Python modules
-        run: python -m py_compile runtime/host_bridge.py neural/tokenizer.py neural/model.py neural/train.py neural/generate.py
+        run: python -m py_compile runtime/host_bridge.py neural/tokenizer.py neural/model.py neural/train.py neural/generate.py neural/agent.py neural/planner.py
       - name: Validate installer shell syntax
         run: sh -n install.sh
       - name: Run safety tests
