@@ -19,7 +19,7 @@ cd ~/MiProyecto
 memecode
 ```
 
-También puedes enviar una tarea directamente:
+También puedes enviar una tarea directamente al agente principal:
 
 ```sh
 memecode "Revisa este proyecto y encuentra errores"
@@ -32,6 +32,26 @@ memecode "Revisa este proyecto y encuentra errores"
 - `memecode update`: actualiza MemeCode y reinstala su entorno.
 - `memecode uninstall`: desinstala MemeCode tras pedir confirmación.
 - `memecode --help`: muestra ayuda.
+
+## Ejecutar MemeCode Neural sin proveedor
+
+El instalador también registra los comandos `memecode neural` y `memecode-neural`. Neural trabaja en la carpeta actual:
+
+```sh
+cd ~/MiProyecto
+memecode neural --help
+memecode neural --list
+memecode-neural --read README.md
+```
+
+Para revisar un plan JSON y aplicarlo solo después de confirmarlo:
+
+```sh
+memecode-neural --apply-plan plan.json
+memecode-neural --apply-plan plan.json --yes
+```
+
+Neural no necesita API key. La generación de planes en lenguaje natural sí requiere un checkpoint entrenado. PyTorch no se instala automáticamente y puede no estar disponible para Termux; los comandos de archivos y revisión de planes funcionan sin él.
 
 ## Configurar un proveedor de IA
 
@@ -49,7 +69,7 @@ No publiques ni compartas la clave. El uso de una API puede tener costos según 
 - Instala dentro de `~/.local/share/memecode` (o `$MEMECODE_HOME` si se define).
 - Usa un entorno virtual Python separado para evitar modificar el Python global.
 - Descarga la rama de Memingo fijada por el proyecto.
-- Comprueba la compilación de los módulos Python.
+- Comprueba la compilación de los módulos Python, incluido Neural.\n- Registra los comandos `memecode neural` y `memecode-neural`.
 - Crea el comando `memecode` en `$PREFIX/bin` (Termux) o `~/.local/bin` (Linux).
 
 ## Limitaciones y seguridad
