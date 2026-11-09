@@ -81,6 +81,16 @@ def write_file(root: Path, relative: str, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
+def filtered_environment() -> dict[str, str]:
+    """Keep common runtime variables but drop credential-like environment keys."""
+    allowed = {"PATH", "HOME", "PREFIX", "TMPDIR", "LANG", "LC_ALL", "TERM",
+               "ANDROID_ROOT", "ANDROID_DATA", "SHELL"}
+    blocked_words = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "AUTH")
+    return {
+        key: value for key, value in os.environ.items()
+        if key in allowed and not any(word in key.upper() for word in blocked_words)
+    }
+
 def run_command(root: Path, argv: Sequence[str], timeout: int) -> int:
     if not argv:
         raise WorkspaceError("Provide a command after --.")
@@ -99,7 +109,7 @@ def run_command(root: Path, argv: Sequence[str], timeout: int) -> int:
             list(argv), cwd=root, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, errors="replace", timeout=max(1, min(timeout, 120)),
-            check=False, shell=False, env={**os.environ, "PWD": str(root)}
+            check=False, shell=False, env={**filtered_environment(), "PWD": str(root)}
         )
     except subprocess.TimeoutExpired as exc:
         output = exc.stdout or ""
