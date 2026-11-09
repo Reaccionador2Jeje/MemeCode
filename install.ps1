@@ -68,6 +68,36 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail "Falló la comprobación de Python." }
     $memingoExe = Join-Path $AppDir ".venv\Scripts\memingo.exe"
     if (-not (Test-Path $memingoExe)) { Fail "Memingo no quedó disponible en el entorno virtual." }
+
+    $configDir = Join-Path $env:APPDATA "MemeCode"
+    $configFile = Join-Path $configDir ".env"
+    $currentModel = "gpt-4o-mini"
+    if (Test-Path $configFile) {
+        $modelLine = Get-Content $configFile | Where-Object { $_ -match '^MEMECODE_MODEL=' } | Select-Object -First 1
+        if ($modelLine) { $currentModel = ($modelLine -replace '^MEMECODE_MODEL=', '').Trim('"').Trim("'") }
+    }
+    $selectedModel = Read-Host "Modelo de IA [$currentModel] (Enter conserva el actual)"
+    if ([string]::IsNullOrWhiteSpace($selectedModel)) { $selectedModel = $currentModel }
+    if ($selectedModel -match '\\s') { Fail "Nombre de modelo inválido. No uses espacios." }
+    @'
+import json, os, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+values = {"MEMECODE_API_KEY": "", "MEMECODE_MODEL": "gpt-4o-mini", "MEMECODE_BASE_URL": "https://api.openai.com/v1"}
+if path.is_file():
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            if key in values:
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                    value = value[1:-1]
+                values[key] = value
+values["MEMECODE_MODEL"] = sys.argv[2]
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text("# MemeCode private provider configuration. Do not share or commit.\\n" + "".join(f"{k}={json.dumps(v)}\\n" for k, v in values.items()), encoding="utf-8")
+'@ | & $venvPython - $configFile $selectedModel
+    if ($LASTEXITCODE -ne 0) { Fail "No se pudo guardar el modelo seleccionado." }
     Copy-Item -Force (Join-Path $PSScriptRoot "install.ps1") (Join-Path $AppDir "install.ps1")
     @'
 @echo off
@@ -87,7 +117,7 @@ if /i "%~1"=="doctor" (
   if defined MEMECODE_API_KEY (echo API: clave presente en esta sesion) else (echo API: falta MEMECODE_API_KEY)
   exit /b
 )
-if /i "%~1"=="update" (
+if /i "%~1"=="setup" (\n  "%PY%" "%AGENT%" --setup\n  exit /b %ERRORLEVEL%\n)\nif /i "%~1"=="update" (
   powershell -NoProfile -ExecutionPolicy Bypass -File "%APP_DIR%\install.ps1" -Action update
   exit /b %ERRORLEVEL%
 )
@@ -96,7 +126,7 @@ if /i "%~1"=="uninstall" (
   exit /b %ERRORLEVEL%
 )
 if /i "%~1"=="help" (
-  echo Uso: memecode [doctor^|update^|uninstall^|tarea...]
+  echo Uso: memecode [setup^|doctor^|update^|uninstall^|tarea...]
   echo Sin argumentos abre el chat en la carpeta actual.
   exit /b 0
 )
