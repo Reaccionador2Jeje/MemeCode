@@ -20,6 +20,7 @@ except ImportError:
 
 MAX_STEPS = 8
 MAX_TOOL_RESULT = 12000
+GIT_OUTPUT_LIMIT = 12000
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
 class AgentError(Exception):
@@ -85,6 +86,9 @@ def build_system_prompt(config: dict[str, Any]) -> str:
 TOOLS = [
     {"type":"function","function":{"name":"list_files","description":"List files and directories inside the approved workspace.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":[],"additionalProperties":False}}},
     {"type":"function","function":{"name":"read_file","description":"Read a UTF-8 project file. Secret files are blocked.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":False}}},
+    {"type":"function","function":{"name":"git_status","description":"Read-only Git status for the approved workspace.","parameters":{"type":"object","properties":{},"required":[],"additionalProperties":False}}},
+    {"type":"function","function":{"name":"git_diff","description":"Read-only unstaged and staged diff summary for the approved workspace.","parameters":{"type":"object","properties":{},"required":[],"additionalProperties":False}}},
+    {"type":"function","function":{"name":"git_log","description":"Read-only recent commit history (up to five commits).","parameters":{"type":"object","properties":{},"required":[],"additionalProperties":False}}},
     {"type":"function","function":{"name":"write_file","description":"Propose a file change. User approval is required after showing a diff.","parameters":{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"],"additionalProperties":False}}},
     {"type":"function","function":{"name":"run_command","description":"Run a command in the workspace after showing it and obtaining approval.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}},"timeout":{"type":"integer","minimum":1,"maximum":120}},"required":["argv"],"additionalProperties":False}}}
 ]
@@ -101,12 +105,44 @@ def _show_diff(path: str, old: str, new: str) -> None:
     if len(lines) > 240:
         print(f"... diff truncated ({len(lines)} total lines)")
 
+def git_readonly(root: Path, action: str) -> str:
+    """Run one fixed, read-only Git inspection command in the workspace."""
+    commands = {
+        "status": ["git", "status", "--short", "--branch"],
+        "diff": ["git", "--no-pager", "diff", "--no-ext-diff", "--no-color", "--"],
+        "log": ["git", "--no-pager", "log", "-5", "--oneline", "--decorate=no"],
+    }
+    if action not in commands:
+        raise WorkspaceError("Unsupported Git inspection action.")
+    if not (root / ".git").exists():
+        raise WorkspaceError("The workspace is not a Git repository.")
+    environment = {
+        key: value for key, value in os.environ.items()
+        if key in {"PATH", "HOME", "PREFIX", "TMPDIR", "LANG", "LC_ALL", "TERM"}
+    }
+    environment.update({"GIT_PAGER": "cat", "GIT_TERMINAL_PROMPT": "0",
+                        "GIT_CONFIG_NOSYSTEM": "1", "GIT_OPTIONAL_LOCKS": "0"})
+    try:
+        result = subprocess.run(
+            commands[action], cwd=root, env=environment, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            errors="replace", timeout=10, check=False, shell=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise WorkspaceError(f"Git inspection failed: {exc}") from exc
+    output = result.stdout[-GIT_OUTPUT_LIMIT:]
+    if result.returncode:
+        raise WorkspaceError(output or f"Git exited with code {result.returncode}.")
+    return output or "(No output)"
+
 def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
     try:
         if name == "list_files":
             return json.dumps(list_files(root, arguments.get("path",".")), ensure_ascii=False)
         if name == "read_file":
             return read_file(root, arguments["path"])
+        if name in {"git_status", "git_diff", "git_log"}:
+            return git_readonly(root, name.removeprefix("git_"))
         if name == "write_file":
             path, new_content = arguments["path"], arguments["content"]
             target = safe_path(root, path)
