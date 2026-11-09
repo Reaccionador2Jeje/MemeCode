@@ -92,6 +92,7 @@ case "${1:-}" in
 esac
 LAUNCHER
 chmod +x "$BIN_DIR/memecode"
+curl -fsSL "https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh" -o "$APP_DIR/install.sh"
 say "¡Instalación completada!"
 say "Ejecuta: memecode"
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "Añade $BIN_DIR a PATH para ejecutar memecode desde cualquier carpeta." ;; esac
