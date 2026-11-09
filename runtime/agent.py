@@ -214,7 +214,7 @@ def run_review_cycle(task: str, root: Path, *, api_key: str, model: str,
     reports: list[str] = []
     for index in range(1, rounds + 1):
         review_task = (
-            f"Review and, if necessary, improve this project for the user's task: {task}\\n"
+            f"Review and, if necessary, improve this project for the user's task: {task}\n"
             f"This is review/repair pass {index} of {rounds}. Inspect relevant files, "
             "run relevant tests, and fix only concrete issues. Every file edit and "
             "command still requires interactive user approval. Never bypass approval. "
@@ -256,14 +256,14 @@ def main() -> int:
                 base_url=args.base_url, max_steps=steps,
                 max_repair_rounds=args.max_repair_rounds, system_prompt=prompt,
             )
-            print("\\nMemeCode review:")
+            print("\nMemeCode review:")
             for index, report in enumerate(reports, start=1):
-                print(f"\\n--- Pass {index} ---\\n{report}")
+                print(f"\n--- Pass {index} ---\n{report}")
         else:
             answer = run_agent(args.task, root, api_key=api_key, model=args.model,
                                base_url=args.base_url, max_steps=steps,
                                system_prompt=prompt)
-            print("\\nMemeCode:\\n" + answer)
+            print("\nMemeCode:\n" + answer)
         return 0
     except (AgentError,WorkspaceError,OSError) as exc:
         print(f"MemeCode error: {exc}",file=sys.stderr)
