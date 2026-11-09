@@ -239,7 +239,7 @@ def save_task_history(root: Path, task: str, result: str) -> Path:
     record = {"timestamp": datetime.now(timezone.utc).isoformat(),
               "task": task[:500], "result": result[:1200]}
     with history.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(record, ensure_ascii=False) + "\\n")
+        stream.write(json.dumps(record, ensure_ascii=False) + "\n")
     return history
 
 
@@ -283,7 +283,7 @@ def main() -> int:
             if not records:
                 print("No saved MemeCode tasks yet.")
             for item in records:
-                print(f"\\n[{item['timestamp']}] {item['task']}\\n{item['result']}")
+                print(f"\n[{item['timestamp']}] {item['task']}\n{item['result']}")
             return 0
         if not args.chat and not args.task:
             parser.error("provide a task or use --chat")
@@ -302,8 +302,8 @@ def main() -> int:
                     base_url=args.base_url, max_steps=steps,
                     max_repair_rounds=args.max_repair_rounds, system_prompt=prompt,
                 )
-                return "\\n\\n".join(
-                    f"--- Pass {index} ---\\n{report}"
+                return "\n\n".join(
+                    f"--- Pass {index} ---\n{report}"
                     for index, report in enumerate(reports, start=1)
                 )
             return run_agent(task, root, api_key=api_key, model=args.model,
@@ -314,21 +314,21 @@ def main() -> int:
             print("MemeCode chat — escribe /exit para terminar.")
             while True:
                 try:
-                    task = input("\\nTú> ").strip()
+                    task = input("\nTú> ").strip()
                 except (EOFError, KeyboardInterrupt):
-                    print("\\nChat cerrado.")
+                    print("\nChat cerrado.")
                     break
                 if task.lower() in {"/exit", "/quit"}:
                     break
                 if not task:
                     continue
                 answer = execute(task)
-                print("\\nMemeCode> " + answer)
+                print("\nMemeCode> " + answer)
                 if args.save_history:
                     save_task_history(root, task, answer)
         else:
             answer = execute(args.task)
-            print("\\nMemeCode:\\n" + answer)
+            print("\nMemeCode:\n" + answer)
             if args.save_history:
                 save_task_history(root, args.task, answer)
         return 0
