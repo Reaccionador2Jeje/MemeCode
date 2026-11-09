@@ -21,6 +21,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Check out Memingo runtime
+        uses: actions/checkout@v4
+        with:
+          repository: Reaccionador2Jeje/Memingo
+          ref: feat/arch-aur-packaging
+          path: .memingo-runtime
+      - name: Install Memingo runtime
+        run: python -m pip install ./.memingo-runtime
+      - name: Validate Memingo core
+        run: memingo check src
       - name: Compile bridge
         run: python -m py_compile runtime/host_bridge.py
       - name: Run safety tests
