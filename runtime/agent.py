@@ -205,6 +205,32 @@ def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=
             messages.append({"role":"tool","tool_call_id":call.get("id",""),"content":str(result)[:MAX_TOOL_RESULT]})
     raise AgentError(f"Agent reached the {max_steps}-step limit without a final answer.")
 
+def run_review_cycle(task: str, root: Path, *, api_key: str, model: str,
+                     base_url: str = DEFAULT_BASE_URL, max_steps: int = MAX_STEPS,
+                     max_repair_rounds: int = 2, request_fn=provider_request,
+                     system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> list[str]:
+    """Run bounded review/repair passes; edits and commands remain approval-gated."""
+    rounds = max(1, min(int(max_repair_rounds), 3))
+    reports: list[str] = []
+    for index in range(1, rounds + 1):
+        review_task = (
+            f"Review and, if necessary, improve this project for the user's task: {task}\\n"
+            f"This is review/repair pass {index} of {rounds}. Inspect relevant files, "
+            "run relevant tests, and fix only concrete issues. Every file edit and "
+            "command still requires interactive user approval. Never bypass approval. "
+            "If tests pass and no actionable issue remains, finish with the exact marker "
+            "MEMECODE_REVIEW: CLEAN. If issues remain or approval is declined, finish "
+            "with MEMECODE_REVIEW: NEEDS_WORK and explain why."
+        )
+        report = run_agent(review_task, root, api_key=api_key, model=model,
+                           base_url=base_url, max_steps=max_steps,
+                           request_fn=request_fn, system_prompt=system_prompt)
+        reports.append(report)
+        if "MEMECODE_REVIEW: CLEAN" in report:
+            break
+    return reports
+
+
 def main() -> int:
     parser=argparse.ArgumentParser(description="MemeCode AI coding agent")
     parser.add_argument("task",help="What should MemeCode do?")
@@ -212,6 +238,8 @@ def main() -> int:
     parser.add_argument("--model",default=os.environ.get("MEMECODE_MODEL","gpt-4o-mini"))
     parser.add_argument("--base-url",default=os.environ.get("MEMECODE_BASE_URL",DEFAULT_BASE_URL))
     parser.add_argument("--max-steps",type=int,default=MAX_STEPS)
+    parser.add_argument("--review",action="store_true",help="Run a bounded review/repair cycle")
+    parser.add_argument("--max-repair-rounds",type=int,default=2,help="Review passes (1-3; default: 2)")
     args=parser.parse_args()
     api_key=os.environ.get("MEMECODE_API_KEY")
     if not api_key:
@@ -220,8 +248,22 @@ def main() -> int:
     try:
         root=workspace_root(args.workspace)
         core=load_memingo_core(root)
-        answer=run_agent(args.task,root,api_key=api_key,model=args.model,base_url=args.base_url,max_steps=max(1,min(args.max_steps,12)),system_prompt=build_system_prompt(core))
-        print("\nMemeCode:\n"+answer)
+        prompt = build_system_prompt(core)
+        steps = max(1, min(args.max_steps, 12))
+        if args.review:
+            reports = run_review_cycle(
+                args.task, root, api_key=api_key, model=args.model,
+                base_url=args.base_url, max_steps=steps,
+                max_repair_rounds=args.max_repair_rounds, system_prompt=prompt,
+            )
+            print("\\nMemeCode review:")
+            for index, report in enumerate(reports, start=1):
+                print(f"\\n--- Pass {index} ---\\n{report}")
+        else:
+            answer = run_agent(args.task, root, api_key=api_key, model=args.model,
+                               base_url=args.base_url, max_steps=steps,
+                               system_prompt=prompt)
+            print("\\nMemeCode:\\n" + answer)
         return 0
     except (AgentError,WorkspaceError,OSError) as exc:
         print(f"MemeCode error: {exc}",file=sys.stderr)
