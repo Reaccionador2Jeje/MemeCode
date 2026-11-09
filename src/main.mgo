@@ -1,0 +1,20 @@
+# MemeCode — punto de entrada en Memingo
+vibe memecode_name = "MemeCode"
+vibe memecode_version = "0.1.0"
+vibe memecode_status = "foundation"
+
+ritual show_banner() {
+    spill "================================"
+    spill " MemeCode " + memecode_version
+    spill " Agente de codigo con Memingo"
+    spill "================================"
+}
+
+ritual show_status() {
+    spill "Estado: " + memecode_status
+    spill "Puente del sistema: runtime/host_bridge.py"
+    spill "La autonomia con IA se incorporara en la siguiente etapa."
+}
+
+show_banner()
+show_status()
