@@ -84,25 +84,33 @@ def setup_provider_config(*, interactive: bool = True, force: bool = False) -> d
     values = _read_config(path)
     if not interactive or (values.get("MEMECODE_API_KEY") and not force):
         return values
-    print("\nMemeCode: configuración inicial")
+    print("\\nMemeCode: configuración del proveedor")
     print("Archivo privado:", path)
-    print("La API key se introduce oculta y no se mostrará.")
+    print("Paso 1: elige el modelo antes de crear tu API key.")
     try:
-        key = getpass.getpass("MEMECODE_API_KEY (key real): ").strip()
-        if not key:
-            print("No se guardó una key. Vuelve a ejecutar: memecode setup")
-            return values
         default_model = values.get("MEMECODE_MODEL") or "gpt-4o-mini"
         model = input("MEMECODE_MODEL [" + default_model + "]: ").strip() or default_model
         default_url = values.get("MEMECODE_BASE_URL") or DEFAULT_BASE_URL
         base_url = input("MEMECODE_BASE_URL [" + default_url + "]: ").strip() or default_url
+        if not model or any(ch.isspace() for ch in model):
+            raise AgentError("MEMECODE_MODEL no puede estar vacío ni contener espacios.")
+        if not base_url.startswith(("https://", "http://")):
+            raise AgentError("MEMECODE_BASE_URL debe comenzar con https:// o http://.")
+        print("\\nPaso 2: abre esta página y crea una API key:")
+        print("https://platform.openai.com/api-keys")
+        try:
+            import webbrowser
+            webbrowser.open("https://platform.openai.com/api-keys")
+        except Exception:
+            pass
+        print("Paso 3: copia la key y pégala aquí. La entrada estará oculta.")
+        key = getpass.getpass("MEMECODE_API_KEY: ").strip()
+        if not key:
+            print("No se guardó una key. Vuelve a ejecutar: memecode setup")
+            return values
     except (EOFError, KeyboardInterrupt):
-        print("\nConfiguración cancelada.")
+        print("\\nConfiguración cancelada.")
         return values
-    if not model or any(ch.isspace() for ch in model):
-        raise AgentError("MEMECODE_MODEL no puede estar vacío ni contener espacios.")
-    if not base_url.startswith(("https://", "http://")):
-        raise AgentError("MEMECODE_BASE_URL debe comenzar con https:// o http://.")
     values.update({"MEMECODE_API_KEY": key, "MEMECODE_MODEL": model, "MEMECODE_BASE_URL": base_url.rstrip("/")})
     _write_config(path, values)
     print("Configuración guardada.")
