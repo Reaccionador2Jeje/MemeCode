@@ -62,8 +62,11 @@ if [ -f "$CONFIG_FILE" ]; then
   [ -n "$CURRENT_MODEL" ] || CURRENT_MODEL="gpt-4o-mini"
 fi
 say "Configuración del modelo"
-printf 'Modelo de IA [actual: %s]: ' "$CURRENT_MODEL"
-read -r SELECTED_MODEL
+# El instalador suele ejecutarse con curl | sh: stdin es el pipe del script.
+# Lee las respuestas desde la terminal real para que el prompt no termine en EOF.
+[ -r /dev/tty ] || fail "No se detectó una terminal interactiva. Ejecuta el instalador desde una terminal."
+printf 'Modelo de IA [actual: %s]: ' "$CURRENT_MODEL" > /dev/tty
+IFS= read -r SELECTED_MODEL < /dev/tty
 SELECTED_MODEL="${SELECTED_MODEL:-$CURRENT_MODEL}"
 case "$SELECTED_MODEL" in *[!a-zA-Z0-9._:/+-]*|'') fail "Nombre de modelo inválido. No uses espacios." ;; esac
 say "Abre la página oficial para crear tu API key:"
