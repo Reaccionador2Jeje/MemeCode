@@ -54,6 +54,38 @@ say "Preparando entorno Python aislado..."
 "$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/runtime/agent.py" "$APP_DIR/runtime/host_bridge.py" || fail "Falló la comprobación de Python."
 "$APP_DIR/.venv/bin/python" -m memingo --help >/dev/null 2>&1 || "$APP_DIR/.venv/bin/memingo" --help >/dev/null 2>&1 || fail "Memingo no quedó disponible."
 
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/memecode"
+CONFIG_FILE="$CONFIG_DIR/.env"
+CURRENT_MODEL="gpt-4o-mini"
+if [ -f "$CONFIG_FILE" ]; then
+  CURRENT_MODEL="$("$APP_DIR/.venv/bin/python" -c 'import re,sys; s=open(sys.argv[1],encoding="utf-8").read(); m=re.search(r"^MEMECODE_MODEL=[\"\\x27]?(.*?)[\"\\x27]?$",s,re.M); print(m.group(1) if m else "gpt-4o-mini")' "$CONFIG_FILE" 2>/dev/null || printf 'gpt-4o-mini')"
+  [ -n "$CURRENT_MODEL" ] || CURRENT_MODEL="gpt-4o-mini"
+fi
+say "Configuración del modelo"
+printf 'Modelo de IA [actual: %s]: ' "$CURRENT_MODEL"
+read -r SELECTED_MODEL
+SELECTED_MODEL="${SELECTED_MODEL:-$CURRENT_MODEL}"
+case "$SELECTED_MODEL" in *[!a-zA-Z0-9._:/+-]*|'') fail "Nombre de modelo inválido. No uses espacios." ;; esac
+"$APP_DIR/.venv/bin/python" - "$CONFIG_FILE" "$SELECTED_MODEL" <<'PY'
+import json, os, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+values = {"MEMECODE_API_KEY": "", "MEMECODE_MODEL": "gpt-4o-mini", "MEMECODE_BASE_URL": "https://api.openai.com/v1"}
+if path.is_file():
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            if key in values:
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                    value = value[1:-1]
+                values[key] = value
+values["MEMECODE_MODEL"] = sys.argv[2]
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text("# MemeCode private provider configuration. Do not share or commit.\\n" + "".join(f"{k}={json.dumps(v)}\\n" for k, v in values.items()), encoding="utf-8")
+os.chmod(path, 0o600)
+PY
+
 cat > "$BIN_DIR/memecode" <<'LAUNCHER'
 #!/bin/sh
 set -eu
