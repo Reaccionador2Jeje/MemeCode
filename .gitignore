@@ -1,0 +1,10 @@
+# Local secrets and provider configuration
+.env
+.env.*
+!.env.example
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+# MemeCode local state
+.memecode/
