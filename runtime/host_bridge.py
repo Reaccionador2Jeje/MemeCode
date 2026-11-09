@@ -16,7 +16,7 @@ DEFAULT_TIMEOUT = 30
 BLOCKED_EXECUTABLES = {
     "sudo", "su", "doas", "rm", "rmdir", "mkfs", "dd", "shutdown",
     "reboot", "poweroff", "passwd", "useradd", "userdel", "mount",
-    "umount", "iptables", "nft",
+    "umount", "iptables", "nft", "sh", "bash", "zsh", "fish", "cmd", "powershell",
 }
 SECRET_NAMES = {".env", ".env.local", ".env.production", "id_rsa",
                 "id_ed25519", "credentials.json", "secrets.json"}
