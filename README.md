@@ -6,7 +6,7 @@ MemeCode is designed to help inspect a project, propose edits, run checks, and r
 
 ## Project status
 
-<badge>Early development — MVP foundation</badge>
+**Status:** Early development — MVP foundation
 
 - [x] Public repository and initial structure
 - [x] Memingo project entry point
@@ -84,4 +84,4 @@ This is a development tool. Review commands before approving them and do not run
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](LICENSE).
