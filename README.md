@@ -20,13 +20,15 @@ MemeCode is an early open-source coding agent. Its identity, workflow, capabilit
 - [x] Android/Termux installation guide
 - [x] Interactive terminal chat
 - [x] Opt-in local task history
+- [x] Read-only public GitHub repository and branch lookup
+- [x] Approval-gated local branch creation and commits (no push)
 
 ## Architecture
 
 - `src/main.mgo`: Memingo entry point and project configuration.
 - `prompts/system.mgo`: Memingo-side agent principles and safety policy.
 - `runtime/host_bridge.py`: minimal OS bridge. It confines file operations to the selected workspace and requires confirmation before executing commands.
-- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, read-only Git inspection, bounded review/repair, interactive chat, and opt-in local task history.
+- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, read-only Git inspection, approval-gated local branch creation/commits, read-only public GitHub metadata/branch lookup, bounded review/repair, interactive chat, and opt-in local task history.
 - `docs/TERMUX.md`: phone-first setup instructions for Android/Termux.
 
 The agent's policy and workflow are Memingo-native; model networking and operating-system integration remain in Python. This is an early development tool, not a production-ready sandbox.
@@ -67,7 +69,7 @@ python3 runtime/agent.py --workspace . --chat --save-history
 python3 runtime/agent.py --workspace . --history
 ```
 
-The agent can list and read project files, propose edits with a diff and approval, run approved commands, chat interactively, and optionally save task summaries under `.memecode/history.jsonl`. History is local to the workspace and is only written when `--save-history` is supplied; inspect it with `--history`. It requires a compatible model API key; API usage may have costs depending on the provider.
+The agent can list and read project files, propose edits with a diff and approval, run approved commands, chat interactively, optionally save task summaries under `.memecode/history.jsonl`, inspect public GitHub repositories and branches, and create local Git branches or commits only after approval. MemeCode does not push commits or modify GitHub repositories remotely. History is local to the workspace and is only written when `--save-history` is supplied; inspect it with `--history`. It requires a compatible model API key; API usage may have costs depending on the provider.
 
 Inspect the workspace through the bridge:
 
@@ -102,8 +104,9 @@ This is a development tool. Review commands before approving them and do not run
 2. Add a tool-calling agent loop with plan, edit, test, and review steps.
 3. Add diffs and per-file approval before changes.
 4. [x] Add read-only Git status/diff/log inspection.
-5. Add approval-gated Git mutations and GitHub integration.
-6. Improve the phone-friendly Termux workflow and add a local chat interface.
+5. [x] Add approval-gated local branch creation and commit creation.
+6. [x] Add read-only public GitHub repository and branch lookup.
+7. Improve the phone-friendly Termux workflow and add a local chat interface.
 
 ## License
 
