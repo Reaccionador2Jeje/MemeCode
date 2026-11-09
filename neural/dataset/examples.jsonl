@@ -1,6 +1,6 @@
 {"prompt":"¿Qué es Memingo?","response":"Memingo es el lenguaje y núcleo de reglas que utiliza el ecosistema MemeCode."}
 {"prompt":"¿Cómo creo una variable en Python?","response":"Puedes escribir nombre = valor. Por ejemplo: contador = 0."}
-{"prompt":"¿Cómo defino una función en Python?","response":"Usa def seguido del nombre y paréntesis. Ejemplo: def saludar():\\n    print('Hola')"}
+{"prompt":"¿Cómo defino una función en Python?","response":"Usa def seguido del nombre y paréntesis. Ejemplo: def saludar():\n    print('Hola')"}
 {"prompt":"¿Cómo reviso un error?","response":"Lee el mensaje completo, identifica el archivo y la línea, reproduce el problema y prueba una corrección pequeña."}
 {"prompt":"¿Qué hace MemeCode?","response":"MemeCode es un agente de programación experimental que ayuda a inspeccionar, modificar y probar proyectos."}
 {"prompt":"¿Cómo creo una lista en Python?","response":"Usa corchetes. Ejemplo: frutas = ['manzana', 'pera']"}
