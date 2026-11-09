@@ -137,7 +137,33 @@ python -m neural.generate "¿Qué es Memingo?"
 
 Add reviewed examples to `neural/dataset/examples.jsonl`, one JSON object per line with `prompt` and `response` string fields. Checkpoints are written under `neural/checkpoints/` and should remain local.
 
-**Important status:** this is a research prototype with a tiny starter dataset. Its answers will be weak until it is trained on a much larger, carefully reviewed corpus. PyTorch is an optional dependency and may not be readily installable on Android/Termux. The existing `memecode` coding-agent command still uses its current provider adapter; the local model is not yet connected to its tool-calling loop. No API keys are needed to train or test the standalone Neural prototype.
+**Important status:** this is a research prototype with a tiny starter dataset. Its answers will be weak until it is trained on a much larger, carefully reviewed corpus. PyTorch is an optional dependency and may not be readily installable on Android/Termux. The regular `memecode` command continues to use its provider adapter. Neural is available separately through `memecode neural` or `memecode-neural`; it does not call a hosted provider. The Neural launcher is installed automatically, but PyTorch and a trained checkpoint are optional and are not bundled. Without a checkpoint, workspace commands such as listing and reading files still work; natural-language plan drafting requires a trained checkpoint. No API key is required for Neural.
+
+### Run the local Neural agent
+
+After installing MemeCode, open a project directory and run:
+
+```sh
+memecode neural --help
+memecode neural --list
+memecode neural --read README.md
+```
+
+You can also use its dedicated command:
+
+```sh
+memecode-neural --list
+memecode-neural --draft "Create a small Python calculator"
+```
+
+To apply a reviewed plan saved as `plan.json`, first preview it and then explicitly confirm:
+
+```sh
+memecode-neural --apply-plan plan.json
+memecode-neural --apply-plan plan.json --yes
+```
+
+The installer registers both launchers on Termux, Linux, macOS, and Windows. Neural works in the current directory as its workspace. Plan generation needs an available trained checkpoint; file listing/reading and plan validation do not require a model checkpoint.
 
 ## Architecture
 
