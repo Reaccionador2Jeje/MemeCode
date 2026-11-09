@@ -155,11 +155,19 @@ def git_mutation(root: Path, action: str, arguments: dict[str, Any]) -> str:
         name = str(arguments.get("name", ""))
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,79}", name) or name.endswith(("/", ".", ".lock")) or ".." in name or "//" in name:
             raise WorkspaceError("Invalid branch name.")
-        exists = subprocess.run(["git", "branch", "--list", name], cwd=root, env=environment,
-                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT, text=True, timeout=10, check=False)
-        if exists.returncode or exists.stdout.strip():
-            raise WorkspaceError("Branch already exists or could not be checked.")
+        valid = subprocess.run(["git", "check-ref-format", "--branch", name], cwd=root, env=environment,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True, timeout=10, check=False)
+        if valid.returncode:
+            raise WorkspaceError("Git rejected this branch name.")
+        exists = subprocess.run(["git", "show-ref", "--verify", "--quiet", "refs/heads/" + name],
+                                cwd=root, env=environment, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, timeout=10, check=False)
+        if exists.returncode == 0:
+            raise WorkspaceError("Branch already exists.")
+        if exists.returncode != 1:
+            raise WorkspaceError("Could not check whether the branch exists.")
         print(f"\nMemeCode proposes creating local branch: {name}")
         if not _approve("Create and switch to this branch?"):
             return "User declined branch creation."
