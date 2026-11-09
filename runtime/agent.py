@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse
 import difflib
+from datetime import datetime, timezone
 import json
 import os
 import shutil
@@ -231,39 +232,105 @@ def run_review_cycle(task: str, root: Path, *, api_key: str, model: str,
     return reports
 
 
+def save_task_history(root: Path, task: str, result: str) -> Path:
+    """Append an opt-in local task record."""
+    history = safe_path(root, ".memecode/history.jsonl")
+    history.parent.mkdir(parents=True, exist_ok=True)
+    record = {"timestamp": datetime.now(timezone.utc).isoformat(),
+              "task": task[:500], "result": result[:1200]}
+    with history.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, ensure_ascii=False) + "\\n")
+    return history
+
+
+def read_task_history(root: Path, limit: int = 20) -> list[dict[str, str]]:
+    """Read recent local task records."""
+    history = safe_path(root, ".memecode/history.jsonl")
+    if not history.exists():
+        return []
+    if not history.is_file() or history.stat().st_size > 1_000_000:
+        raise AgentError("Task history is not a regular file or exceeds 1 MB.")
+    records: list[dict[str, str]] = []
+    for line in history.read_text(encoding="utf-8").splitlines()[-max(1, min(limit, 100)):]:
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict):
+            records.append({"timestamp": str(item.get("timestamp", ""))[:40],
+                            "task": str(item.get("task", ""))[:500],
+                            "result": str(item.get("result", ""))[:1200]})
+    return records
+
+
 def main() -> int:
     parser=argparse.ArgumentParser(description="MemeCode AI coding agent")
-    parser.add_argument("task",help="What should MemeCode do?")
+    parser.add_argument("task",nargs="?",help="What should MemeCode do?")
     parser.add_argument("--workspace",default=".",help="Approved project directory")
     parser.add_argument("--model",default=os.environ.get("MEMECODE_MODEL","gpt-4o-mini"))
     parser.add_argument("--base-url",default=os.environ.get("MEMECODE_BASE_URL",DEFAULT_BASE_URL))
     parser.add_argument("--max-steps",type=int,default=MAX_STEPS)
     parser.add_argument("--review",action="store_true",help="Run a bounded review/repair cycle")
     parser.add_argument("--max-repair-rounds",type=int,default=2,help="Review passes (1-3; default: 2)")
+    parser.add_argument("--chat",action="store_true",help="Start an interactive chat session")
+    parser.add_argument("--save-history",action="store_true",help="Opt in to saving task summaries locally")
+    parser.add_argument("--history",action="store_true",help="Show recent locally saved tasks")
     args=parser.parse_args()
-    api_key=os.environ.get("MEMECODE_API_KEY")
-    if not api_key:
-        print("MemeCode: set MEMECODE_API_KEY in your environment first.",file=sys.stderr)
-        return 2
     try:
         root=workspace_root(args.workspace)
+        if args.history:
+            records = read_task_history(root)
+            if not records:
+                print("No saved MemeCode tasks yet.")
+            for item in records:
+                print(f"\\n[{item['timestamp']}] {item['task']}\\n{item['result']}")
+            return 0
+        if not args.chat and not args.task:
+            parser.error("provide a task or use --chat")
+        api_key=os.environ.get("MEMECODE_API_KEY")
+        if not api_key:
+            print("MemeCode: set MEMECODE_API_KEY in your environment first.",file=sys.stderr)
+            return 2
         core=load_memingo_core(root)
         prompt = build_system_prompt(core)
         steps = max(1, min(args.max_steps, 12))
-        if args.review:
-            reports = run_review_cycle(
-                args.task, root, api_key=api_key, model=args.model,
-                base_url=args.base_url, max_steps=steps,
-                max_repair_rounds=args.max_repair_rounds, system_prompt=prompt,
-            )
-            print("\nMemeCode review:")
-            for index, report in enumerate(reports, start=1):
-                print(f"\n--- Pass {index} ---\n{report}")
+
+        def execute(task: str) -> str:
+            if args.review:
+                reports = run_review_cycle(
+                    task, root, api_key=api_key, model=args.model,
+                    base_url=args.base_url, max_steps=steps,
+                    max_repair_rounds=args.max_repair_rounds, system_prompt=prompt,
+                )
+                return "\\n\\n".join(
+                    f"--- Pass {index} ---\\n{report}"
+                    for index, report in enumerate(reports, start=1)
+                )
+            return run_agent(task, root, api_key=api_key, model=args.model,
+                             base_url=args.base_url, max_steps=steps,
+                             system_prompt=prompt)
+
+        if args.chat:
+            print("MemeCode chat — escribe /exit para terminar.")
+            while True:
+                try:
+                    task = input("\\nTú> ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\\nChat cerrado.")
+                    break
+                if task.lower() in {"/exit", "/quit"}:
+                    break
+                if not task:
+                    continue
+                answer = execute(task)
+                print("\\nMemeCode> " + answer)
+                if args.save_history:
+                    save_task_history(root, task, answer)
         else:
-            answer = run_agent(args.task, root, api_key=api_key, model=args.model,
-                               base_url=args.base_url, max_steps=steps,
-                               system_prompt=prompt)
-            print("\nMemeCode:\n" + answer)
+            answer = execute(args.task)
+            print("\\nMemeCode:\\n" + answer)
+            if args.save_history:
+                save_task_history(root, args.task, answer)
         return 0
     except (AgentError,WorkspaceError,OSError) as exc:
         print(f"MemeCode error: {exc}",file=sys.stderr)
