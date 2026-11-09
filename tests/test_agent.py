@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from runtime.agent import AgentError, build_system_prompt, dispatch_tool, git_readonly, load_memingo_core, run_agent, run_review_cycle, save_task_history, read_task_history
+from runtime.agent import AgentError, build_system_prompt, dispatch_tool, git_readonly, load_memingo_core, run_agent, run_review_cycle, save_task_history, read_task_history, github_public_api, git_mutation
 
 class AgentToolTests(unittest.TestCase):
     def setUp(self):
@@ -79,6 +79,32 @@ class AgentToolTests(unittest.TestCase):
         save_task_history(self.root, "../outside", "recorded as plain text")
         self.assertTrue((self.root / ".memecode" / "history.jsonl").is_file())
         self.assertFalse((self.root.parent / ".memecode" / "history.jsonl").exists())
+
+    def test_github_api_rejects_invalid_owner(self):
+        with self.assertRaises(AgentError):
+            github_public_api("../bad", "repo", "")
+
+    def test_github_api_uses_read_only_get(self):
+        from unittest.mock import Mock, patch
+        response = Mock()
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        response.read.return_value = b'{"full_name":"owner/repo","default_branch":"main"}'
+        with patch("runtime.agent.urllib.request.urlopen", return_value=response) as open_url:
+            payload = github_public_api("owner", "repo", "")
+        self.assertIn("owner/repo", payload)
+        self.assertEqual(open_url.call_args.args[0].method, "GET")
+
+    def test_branch_creation_requires_approval(self):
+        (self.root / ".git").mkdir()
+        with patch("runtime.agent._approve", return_value=False):
+            result = git_mutation(self.root, "branch", {"name": "feature/demo"})
+        self.assertIn("declined", result)
+
+    def test_rejects_invalid_branch_name(self):
+        (self.root / ".git").mkdir()
+        with self.assertRaises(Exception):
+            git_mutation(self.root, "branch", {"name": "../bad"})
 
     def test_step_limit(self):
         def fake(messages,**kwargs):
