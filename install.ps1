@@ -66,7 +66,7 @@ try {
     Say "Instalando o actualizando Memingo..."
     & $venvPython -m pip install --upgrade (Join-Path $tempDir "Memingo")
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo instalar Memingo." }
-    & $venvPython -m py_compile (Join-Path $AppDir "runtime\agent.py") (Join-Path $AppDir "runtime\host_bridge.py")
+    & $venvPython -m py_compile (Join-Path $AppDir "runtime\agent.py") (Join-Path $AppDir "runtime\host_bridge.py") (Join-Path $AppDir "neural\agent.py") (Join-Path $AppDir "neural\planner.py")
     if ($LASTEXITCODE -ne 0) { Fail "Falló la comprobación de Python." }
     $memingoExe = Join-Path $AppDir ".venv\Scripts\memingo.exe"
     if (-not (Test-Path $memingoExe)) { Fail "Memingo no quedó disponible en el entorno virtual." }
@@ -124,7 +124,7 @@ if not exist "%PY%" (
 if /i "%~1"=="doctor" (
   "%PY%" --version
   "%APP_DIR%\.venv\Scripts\memingo.exe" --help >nul 2>&1 && echo Memingo: OK || echo Memingo: revisar
-  "%PY%" -m py_compile "%AGENT%" "%APP_DIR%\runtime\host_bridge.py" && echo Python: OK
+  "%PY%" -m py_compile "%AGENT%" "%APP_DIR%\runtime\host_bridge.py" "%APP_DIR%\neural\agent.py" "%APP_DIR%\neural\planner.py" && echo Python + Neural: OK
   if defined MEMECODE_API_KEY (echo API: clave presente en esta sesion) else (echo API: falta MEMECODE_API_KEY)
   exit /b
 )
