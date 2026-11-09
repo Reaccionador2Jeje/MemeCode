@@ -84,7 +84,7 @@ def setup_provider_config(*, interactive: bool = True, force: bool = False) -> d
     values = _read_config(path)
     if not interactive or (values.get("MEMECODE_API_KEY") and not force):
         return values
-    print("\\nMemeCode: configuración del proveedor")
+    print("\nMemeCode: configuración del proveedor")
     print("Archivo privado:", path)
     print("Paso 1: elige el modelo antes de crear tu API key.")
     try:
@@ -96,7 +96,7 @@ def setup_provider_config(*, interactive: bool = True, force: bool = False) -> d
             raise AgentError("MEMECODE_MODEL no puede estar vacío ni contener espacios.")
         if not base_url.startswith(("https://", "http://")):
             raise AgentError("MEMECODE_BASE_URL debe comenzar con https:// o http://.")
-        print("\\nPaso 2: abre esta página y crea una API key:")
+        print("\nPaso 2: abre esta página y crea una API key:")
         print("https://platform.openai.com/api-keys")
         try:
             import webbrowser
@@ -109,7 +109,7 @@ def setup_provider_config(*, interactive: bool = True, force: bool = False) -> d
             print("No se guardó una key. Vuelve a ejecutar: memecode setup")
             return values
     except (EOFError, KeyboardInterrupt):
-        print("\\nConfiguración cancelada.")
+        print("\nConfiguración cancelada.")
         return values
     values.update({"MEMECODE_API_KEY": key, "MEMECODE_MODEL": model, "MEMECODE_BASE_URL": base_url.rstrip("/")})
     _write_config(path, values)
