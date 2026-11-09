@@ -66,8 +66,16 @@ printf 'Modelo de IA [actual: %s]: ' "$CURRENT_MODEL"
 read -r SELECTED_MODEL
 SELECTED_MODEL="${SELECTED_MODEL:-$CURRENT_MODEL}"
 case "$SELECTED_MODEL" in *[!a-zA-Z0-9._:/+-]*|'') fail "Nombre de modelo inválido. No uses espacios." ;; esac
+say "Abre la página oficial para crear tu API key:"
+printf '%s\n' "https://platform.openai.com/api-keys"
+if command -v termux-open-url >/dev/null 2>&1; then
+  termux-open-url "https://platform.openai.com/api-keys" || true
+elif command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "https://platform.openai.com/api-keys" >/dev/null 2>&1 || true
+fi
+say "Crea y copia tu API key. Después pégala aquí; la entrada estará oculta."
 "$APP_DIR/.venv/bin/python" - "$CONFIG_FILE" "$SELECTED_MODEL" <<'PY'
-import json, os, pathlib, sys
+import getpass, json, os, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 values = {"MEMECODE_API_KEY": "", "MEMECODE_MODEL": "gpt-4o-mini", "MEMECODE_BASE_URL": "https://api.openai.com/v1"}
 if path.is_file():
@@ -81,9 +89,15 @@ if path.is_file():
                     value = value[1:-1]
                 values[key] = value
 values["MEMECODE_MODEL"] = sys.argv[2]
+key = getpass.getpass("Pega MEMECODE_API_KEY (entrada oculta): ").strip()
+if key:
+    values["MEMECODE_API_KEY"] = key
+else:
+    print("No se introdujo una key; podrás configurarla después con: memecode setup")
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text("# MemeCode private provider configuration. Do not share or commit.\n" + "".join(f"{k}={json.dumps(v)}\n" for k, v in values.items()), encoding="utf-8")
 os.chmod(path, 0o600)
+print("Configuración guardada en:", path)
 PY
 
 cat > "$BIN_DIR/memecode" <<'LAUNCHER'
