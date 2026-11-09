@@ -65,6 +65,8 @@ class NeuralPlannerTests(unittest.TestCase):
         }])
         apply_plan(self.root, plan, approve=True)
         self.assertEqual(target.read_text(), "después")
+        backup = self.root / ".memecode" / "backups" / "old.txt"
+        self.assertEqual(backup.read_text(), "antes")
 
     def test_rejects_duplicate_paths_and_too_many_operations(self):
         operation = {"action": "create_file", "path": "a.txt", "content": "a"}
