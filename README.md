@@ -2,111 +2,79 @@
 
 **An open-source coding-agent project built around Memingo.**
 
-MemeCode is an early open-source coding agent. Its identity, workflow, capabilities, and safety policy are defined in Memingo (`.mgo`); a small Python adapter connects that core to an OpenAI-compatible model API and the local workspace tools.
+MemeCode is an early open-source coding agent. Its identity, workflow, capabilities, and safety policy are defined in Memingo (`.mgo`); a small Python adapter connects that core to an OpenAI-compatible model API and local workspace tools.
 
 ## Project status
 
 **Status:** Early development — MVP foundation
 
-- [x] Public repository and initial structure
-- [x] Memingo project entry point and policy core
-- [x] Python host bridge for scoped file and command operations
-- [x] Workspace path validation
-- [x] Explicit confirmation before running shell commands
-- [x] OpenAI-compatible chat-completions provider adapter
-- [x] Agent planning and tool-call loop\n- [x] Runtime loads its system policy from Memingo
-- [x] Bounded review and repair cycle (1–3 passes)
-- [x] Read-only local Git inspection
-- [x] Android/Termux installation guide
-- [x] Interactive terminal chat
-- [x] Opt-in local task history
-- [x] Read-only public GitHub repository and branch lookup
+- [x] Memingo policy core and Python host bridge
+- [x] Workspace-confined file operations and approval-gated edits
+- [x] Approval-gated command execution
+- [x] OpenAI-compatible tool-calling agent loop
+- [x] Bounded review/repair, interactive chat, and opt-in task history
+- [x] Read-only Git and public GitHub inspection
 - [x] Approval-gated local branch creation and commits (no push)
+- [x] One-command installer for Termux and Linux
+
+## One-command install
+
+### Termux (Android)
+
+```sh
+pkg update
+pkg install git python curl
+curl -fsSL https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh | sh
+```
+
+### Linux
+
+Install Git, Python 3 with venv support, and curl, then run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh | sh
+```
+
+The installer downloads MemeCode and Memingo, creates an isolated Python virtual environment, and adds the `memecode` command. No separate Memingo installation is needed.
+
+## Run
+
+From the folder you want MemeCode to work in:
+
+```sh
+cd /path/to/your/project
+memecode
+```
+
+Useful commands:
+
+```sh
+memecode doctor
+memecode update
+memecode uninstall
+memecode "Inspect this project and explain its structure"
+```
+
+Set a compatible provider key in your current terminal session:
+
+```sh
+export MEMECODE_API_KEY='your-api-key'
+export MEMECODE_MODEL='gpt-4o-mini'
+```
+
+API use may cost money depending on the provider. Keep keys private and review provider pricing before use.
 
 ## Architecture
 
-- `src/main.mgo`: Memingo entry point and project configuration.
-- `prompts/system.mgo`: Memingo-side agent principles and safety policy.
-- `runtime/host_bridge.py`: minimal OS bridge. It confines file operations to the selected workspace and requires confirmation before executing commands.
-- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, read-only Git inspection, approval-gated local branch creation/commits, read-only public GitHub metadata/branch lookup, bounded review/repair, interactive chat, and opt-in local task history.
-- `docs/TERMUX.md`: phone-first setup instructions for Android/Termux.
+- `src/main.mgo` and `src/agent_core.mgo`: Memingo entry point and policy.
+- `runtime/host_bridge.py`: workspace-scoped file and command bridge.
+- `runtime/agent.py`: model adapter, tool loop, approvals, Git/GitHub tools, review cycle, chat, and history.
+- `install.sh`: one-command installer and update/uninstall entry point.
+- `docs/TERMUX.md`: Android installation guide.
 
-The agent's policy and workflow are Memingo-native; model networking and operating-system integration remain in Python. This is an early development tool, not a production-ready sandbox.
+## Safety
 
-## Requirements
-
-- Python 3.10+
-- Memingo installed (for running the `.mgo` entry point)
-
-## Quick start
-
-Clone the repository:
-
-```bash
-git clone https://github.com/Reaccionador2Jeje/MemeCode.git
-cd MemeCode
-```
-
-Run the Memingo entry point:
-
-```bash
-memingo run src/main.mgo
-```
-
-Configure an OpenAI-compatible provider (keep the API key private):
-
-```bash
-export MEMECODE_API_KEY='your-api-key'
-export MEMECODE_MODEL='gpt-4o-mini'
-# Optional: use another compatible provider
-# export MEMECODE_BASE_URL='https://provider.example/v1'
-python3 runtime/agent.py 'Inspect this project and explain its structure' --workspace .
-# Optional bounded review/repair (asks before each edit/command):
-python3 runtime/agent.py 'Review the project and run its tests' --workspace . --review --max-repair-rounds 2
-# Interactive chat; opt in to saving task summaries locally:
-python3 runtime/agent.py --workspace . --chat --save-history
-# Show saved tasks:
-python3 runtime/agent.py --workspace . --history
-```
-
-The agent can list and read project files, propose edits with a diff and approval, run approved commands, chat interactively, optionally save task summaries under `.memecode/history.jsonl`, inspect public GitHub repositories and branches, and create local Git branches or commits only after approval. MemeCode does not push commits or modify GitHub repositories remotely. History is local to the workspace and is only written when `--save-history` is supplied; inspect it with `--history`. It requires a compatible model API key; API usage may have costs depending on the provider.
-
-Inspect the workspace through the bridge:
-
-```bash
-python3 runtime/host_bridge.py --workspace . list .
-python3 runtime/host_bridge.py --workspace . read README.md
-```
-
-Run a command only after reviewing and approving it:
-
-```bash
-python3 runtime/host_bridge.py --workspace . run -- python3 --version
-```
-
-The bridge asks for confirmation and passes commands as argument arrays without invoking a shell. It blocks selected executables, but this is not a filesystem sandbox: an approved program may still access files outside the workspace.
-
-## Safety model
-
-- File paths are resolved and checked against the workspace root, including symlinks.
-- Commands run with the workspace as their working directory and a reduced environment that omits credential-like variables.\n- Command execution is **not an OS sandbox**: an approved program still runs with your user permissions. Review every command and only run MemeCode in projects you trust.
-- Commands are passed as argument arrays; shell interpolation is not enabled.
-- Every command requires an interactive approval.
-- Destructive/system-administration commands are blocked by default.
-- Command execution has a timeout and bounded output.
-- Do not put API keys, passwords, or other secrets in project files.
-
-This is a development tool. Review commands before approving them and do not run it on projects you do not trust.
-
-## Roadmap
-
-1. Connect an OpenAI-compatible model provider using environment variables.
-2. Add a tool-calling agent loop with plan, edit, test, and review steps.
-3. Add diffs and per-file approval before changes.
-4. [x] Add read-only Git status/diff/log inspection.
-5. [x] Add approval-gated local branch creation and commit creation.
-6. [x] Add read-only public GitHub repository and branch lookup.
-7. Improve the phone-friendly Termux workflow and add a local chat interface.
+File edits display a diff and require approval. Commands require approval. Git commits and branch creation require approval and remain local; MemeCode does not push. The command bridge is **not an OS sandbox**: approved programs still run with your user permissions. Only use it in projects you trust.
 
 ## License
 
