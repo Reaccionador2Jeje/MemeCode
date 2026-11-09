@@ -133,9 +133,7 @@ if /i "%~1"=="setup" (
   exit /b %ERRORLEVEL%
 )
 if /i "%~1"=="neural" (
-  set "PYTHONPATH=%APP_DIR%;%PYTHONPATH%"
-  shift
-  "%PY%" -m neural.agent --workspace "%CD%" %1 %2 %3 %4 %5 %6 %7 %8 %9
+  call "%~dp0memecode-neural.cmd" %2 %3 %4 %5 %6 %7 %8 %9
   exit /b %ERRORLEVEL%
 )
 if /i "%~1"=="update" (
