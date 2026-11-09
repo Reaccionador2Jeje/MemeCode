@@ -2,19 +2,19 @@
 
 **An open-source coding-agent project built around Memingo.**
 
-MemeCode is designed to help inspect a project, propose edits, run checks, and repair errors. This first commit establishes the safe workspace runtime and the Memingo-side project entry point. The model/provider integration and autonomous repair loop are planned next; they are not claimed to be complete yet.
+MemeCode is an early open-source coding agent. Its identity, workflow, capabilities, and safety policy are defined in Memingo (`.mgo`); a small Python adapter connects that core to an OpenAI-compatible model API and the local workspace tools.
 
 ## Project status
 
 **Status:** Early development — MVP foundation
 
 - [x] Public repository and initial structure
-- [x] Memingo project entry point
+- [x] Memingo project entry point and policy core
 - [x] Python host bridge for scoped file and command operations
 - [x] Workspace path validation
 - [x] Explicit confirmation before running shell commands
 - [x] OpenAI-compatible chat-completions provider adapter
-- [x] Agent planning and tool-call loop
+- [x] Agent planning and tool-call loop\n- [x] Runtime loads its system policy from Memingo
 - [ ] Automated review and repair cycle
 - [ ] Git/GitHub integration
 - [ ] Android/Termux installation guide
@@ -25,7 +25,7 @@ MemeCode is designed to help inspect a project, propose edits, run checks, and r
 - `prompts/system.mgo`: Memingo-side agent principles and safety policy.
 - `runtime/host_bridge.py`: minimal OS bridge. It confines file operations to the selected workspace and requires confirmation before executing commands.
 
-The bridge is intentionally small: Memingo remains the project's primary language. The current version includes a basic model-driven tool loop. It still needs broader provider compatibility, stronger sandboxing, and more tests before production use.
+The agent's policy and workflow are Memingo-native; model networking and operating-system integration remain in Python. This is an early development tool, not a production-ready sandbox.
 
 ## Requirements
 
