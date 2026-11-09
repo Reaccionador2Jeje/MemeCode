@@ -1,3 +1,4 @@
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -70,6 +71,14 @@ class AgentToolTests(unittest.TestCase):
     def test_rejects_missing_memingo_core(self):
         with self.assertRaises(AgentError):
             load_memingo_core(self.root)
+
+
+    @unittest.skipUnless(shutil.which("memingo"), "Memingo runtime is not installed")
+    def test_real_memingo_core_outputs_agent_config(self):
+        config = load_memingo_core(Path(__file__).parents[1])
+        self.assertEqual(config["name"], "MemeCode")
+        self.assertIn("inspect", config["workflow"])
+        self.assertGreater(len(config["policy"]), 0)
 
 if __name__=="__main__":
     unittest.main()
