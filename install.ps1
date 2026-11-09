@@ -51,6 +51,7 @@ if (Test-Path (Join-Path $AppDir ".git")) {
 }
 $tempDir = Join-Path ([IO.Path]::GetTempPath()) ("memecode-" + [guid]::NewGuid().ToString("N"))
 try {
+    New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
     Say "Descargando Memingo..."
     & git clone --depth 1 --branch $MemingoBranch $MemingoRepo (Join-Path $tempDir "Memingo")
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo descargar Memingo." }
