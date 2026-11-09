@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse
 import difflib
+import getpass
 from datetime import datetime, timezone
 import json
 import os
@@ -25,6 +26,96 @@ MAX_STEPS = 8
 MAX_TOOL_RESULT = 12000
 GIT_OUTPUT_LIMIT = 12000
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
+CONFIG_EXAMPLE = """# MemeCode private provider configuration.
+MEMECODE_API_KEY=""
+MEMECODE_MODEL="gpt-4o-mini"
+MEMECODE_BASE_URL="https://api.openai.com/v1"
+"""
+
+def config_file() -> Path:
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")))
+        return base / "MemeCode" / ".env"
+    base = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+    return base / "memecode" / ".env"
+
+def _read_config(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.strip()
+        if key in {"MEMECODE_API_KEY", "MEMECODE_MODEL", "MEMECODE_BASE_URL"}:
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+            values[key] = value
+    return values
+
+def _write_config(path: Path, values: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# MemeCode private provider configuration. Do not share or commit.",
+        "MEMECODE_API_KEY=" + json.dumps(values.get("MEMECODE_API_KEY", "")),
+        "MEMECODE_MODEL=" + json.dumps(values.get("MEMECODE_MODEL", "gpt-4o-mini")),
+        "MEMECODE_BASE_URL=" + json.dumps(values.get("MEMECODE_BASE_URL", DEFAULT_BASE_URL)),
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if os.name != "nt":
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
+
+def setup_provider_config(*, interactive: bool = True, force: bool = False) -> dict[str, str]:
+    path = config_file()
+    example = path.parent / ".env.example"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not example.exists():
+        example.write_text(CONFIG_EXAMPLE, encoding="utf-8")
+        if os.name != "nt":
+            example.chmod(0o600)
+    if not path.exists():
+        _write_config(path, {"MEMECODE_API_KEY": "", "MEMECODE_MODEL": "gpt-4o-mini", "MEMECODE_BASE_URL": DEFAULT_BASE_URL})
+    values = _read_config(path)
+    if not interactive or (values.get("MEMECODE_API_KEY") and not force):
+        return values
+    print("\nMemeCode: configuración inicial")
+    print("Archivo privado:", path)
+    print("La API key se introduce oculta y no se mostrará.")
+    try:
+        key = getpass.getpass("MEMECODE_API_KEY (key real): ").strip()
+        if not key:
+            print("No se guardó una key. Vuelve a ejecutar: memecode setup")
+            return values
+        default_model = values.get("MEMECODE_MODEL") or "gpt-4o-mini"
+        model = input("MEMECODE_MODEL [" + default_model + "]: ").strip() or default_model
+        default_url = values.get("MEMECODE_BASE_URL") or DEFAULT_BASE_URL
+        base_url = input("MEMECODE_BASE_URL [" + default_url + "]: ").strip() or default_url
+    except (EOFError, KeyboardInterrupt):
+        print("\nConfiguración cancelada.")
+        return values
+    if not model or any(ch.isspace() for ch in model):
+        raise AgentError("MEMECODE_MODEL no puede estar vacío ni contener espacios.")
+    if not base_url.startswith(("https://", "http://")):
+        raise AgentError("MEMECODE_BASE_URL debe comenzar con https:// o http://.")
+    values.update({"MEMECODE_API_KEY": key, "MEMECODE_MODEL": model, "MEMECODE_BASE_URL": base_url.rstrip("/")})
+    _write_config(path, values)
+    print("Configuración guardada.")
+    return values
+
+def provider_settings() -> dict[str, str]:
+    values = setup_provider_config(interactive=True)
+    return {
+        "MEMECODE_API_KEY": os.environ.get("MEMECODE_API_KEY") or values.get("MEMECODE_API_KEY", ""),
+        "MEMECODE_MODEL": os.environ.get("MEMECODE_MODEL") or values.get("MEMECODE_MODEL", "gpt-4o-mini"),
+        "MEMECODE_BASE_URL": os.environ.get("MEMECODE_BASE_URL") or values.get("MEMECODE_BASE_URL", DEFAULT_BASE_URL),
+    }
+
 
 class AgentError(Exception):
     """Provider or agent protocol error."""
@@ -370,14 +461,15 @@ def main() -> int:
     parser=argparse.ArgumentParser(description="MemeCode AI coding agent")
     parser.add_argument("task",nargs="?",help="What should MemeCode do?")
     parser.add_argument("--workspace",default=".",help="Approved project directory")
-    parser.add_argument("--model",default=os.environ.get("MEMECODE_MODEL","gpt-4o-mini"))
-    parser.add_argument("--base-url",default=os.environ.get("MEMECODE_BASE_URL",DEFAULT_BASE_URL))
+    parser.add_argument("--model",default=None)
+    parser.add_argument("--base-url",default=None)
     parser.add_argument("--max-steps",type=int,default=MAX_STEPS)
     parser.add_argument("--review",action="store_true",help="Run a bounded review/repair cycle")
     parser.add_argument("--max-repair-rounds",type=int,default=2,help="Review passes (1-3; default: 2)")
     parser.add_argument("--chat",action="store_true",help="Start an interactive chat session")
     parser.add_argument("--save-history",action="store_true",help="Opt in to saving task summaries locally")
     parser.add_argument("--history",action="store_true",help="Show recent locally saved tasks")
+    parser.add_argument("--setup",action="store_true",help="Create or edit private provider configuration")
     args=parser.parse_args()
     try:
         root=workspace_root(args.workspace)
@@ -388,12 +480,18 @@ def main() -> int:
             for item in records:
                 print(f"\n[{item['timestamp']}] {item['task']}\n{item['result']}")
             return 0
+        if args.setup or args.task == "setup":
+            setup_provider_config(interactive=True, force=True)
+            return 0
         if not args.chat and not args.task:
             parser.error("provide a task or use --chat")
-        api_key=os.environ.get("MEMECODE_API_KEY")
+        settings = provider_settings()
+        api_key = settings["MEMECODE_API_KEY"]
         if not api_key:
-            print("MemeCode: set MEMECODE_API_KEY in your environment first.",file=sys.stderr)
+            print("MemeCode: falta MEMECODE_API_KEY. Ejecuta memecode setup.", file=sys.stderr)
             return 2
+        model = args.model or settings["MEMECODE_MODEL"]
+        base_url = args.base_url or settings["MEMECODE_BASE_URL"]
         core=load_memingo_core(root)
         prompt = build_system_prompt(core)
         steps = max(1, min(args.max_steps, 12))
@@ -401,16 +499,16 @@ def main() -> int:
         def execute(task: str) -> str:
             if args.review:
                 reports = run_review_cycle(
-                    task, root, api_key=api_key, model=args.model,
-                    base_url=args.base_url, max_steps=steps,
+                    task, root, api_key=api_key, model=model,
+                    base_url=base_url, max_steps=steps,
                     max_repair_rounds=args.max_repair_rounds, system_prompt=prompt,
                 )
                 return "\n\n".join(
                     f"--- Pass {index} ---\n{report}"
                     for index, report in enumerate(reports, start=1)
                 )
-            return run_agent(task, root, api_key=api_key, model=args.model,
-                             base_url=args.base_url, max_steps=steps,
+            return run_agent(task, root, api_key=api_key, model=model,
+                             base_url=base_url, max_steps=steps,
                              system_prompt=prompt)
 
         if args.chat:
