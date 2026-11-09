@@ -1,66 +1,61 @@
 # MemeCode en Android con Termux
 
-Esta guía permite preparar MemeCode directamente desde un teléfono Android. No necesitas un PC, pero sí una conexión a Internet para clonar los repositorios e instalar dependencias.
+## Instalación de un solo comando
 
-## 1. Preparar Termux
+Instala primero Termux desde una fuente oficial. Después ejecuta:
 
-Instala Termux desde una fuente oficial y abre la aplicación. Luego ejecuta:
-
-```bash
-pkg update && pkg upgrade
-pkg install git python
+```sh
+pkg update
+pkg install git python curl
+curl -fsSL https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh | sh
 ```
 
-## 2. Descargar MemeCode
+El instalador descarga MemeCode y Memingo, crea un entorno Python aislado y registra el comando `memecode` en `$PREFIX/bin`. No necesitas instalar Memingo por separado.
 
-```bash
-git clone https://github.com/Reaccionador2Jeje/MemeCode.git
-cd MemeCode
+Abre el agente desde la carpeta de tu proyecto:
+
+```sh
+cd ~/MiProyecto
+memecode
 ```
 
-## 3. Instalar Memingo
+También puedes enviar una tarea directamente:
 
-MemeCode necesita el intérprete Memingo para cargar su política escrita en `.mgo`.
-
-```bash
-git clone --branch feat/arch-aur-packaging https://github.com/Reaccionador2Jeje/Memingo.git ../Memingo
-python -m pip install ../Memingo
+```sh
+memecode "Revisa este proyecto y encuentra errores"
 ```
 
-Comprueba la instalación:
+## Comandos
 
-```bash
-memingo --help
-memingo check src
-memingo run src/main.mgo
-```
+- `memecode`: abre el chat en la carpeta actual.
+- `memecode doctor`: comprueba Python, Memingo y la configuración de API.
+- `memecode update`: actualiza MemeCode y reinstala su entorno.
+- `memecode uninstall`: desinstala MemeCode tras pedir confirmación.
+- `memecode --help`: muestra ayuda.
 
-## 4. Ejecutar las pruebas
+## Configurar un proveedor de IA
 
-```bash
-python -m unittest discover -s tests -v
-```
+MemeCode necesita una API compatible con OpenAI Chat Completions y llamadas a herramientas. Configura la clave solo en la sesión actual:
 
-## 5. Conectar un proveedor de IA
-
-El agente requiere una API compatible con el formato OpenAI Chat Completions y llamadas a herramientas. La clave se configura solo en la sesión actual:
-
-```bash
+```sh
 export MEMECODE_API_KEY='TU_CLAVE'
 export MEMECODE_MODEL='gpt-4o-mini'
-python runtime/agent.py 'Revisa la estructura de este proyecto' --workspace .
 ```
 
-No publiques la clave ni la pegues en archivos del proyecto. El uso de una API puede tener costos según el proveedor; revisa sus condiciones antes de usarla.
+No publiques ni compartas la clave. El uso de una API puede tener costos según el proveedor; revisa sus condiciones y pide autorización antes de usar un servicio de pago.
 
-## Herramientas Git disponibles
+## Qué hace el instalador
 
-Dentro de MemeCode, el agente puede consultar el estado, diferencias y últimos cinco commits con herramientas de solo lectura. Las operaciones que modifican archivos siguen mostrando un diff y pidiendo aprobación; ejecutar comandos también requiere aprobación.
+- Instala dentro de `~/.local/share/memecode` (o `$MEMECODE_HOME` si se define).
+- Usa un entorno virtual Python separado para evitar modificar el Python global.
+- Descarga la rama de Memingo fijada por el proyecto.
+- Comprueba la compilación de los módulos Python.
+- Crea el comando `memecode` en `$PREFIX/bin` (Termux) o `~/.local/bin` (Linux).
 
-## Limitaciones importantes
+## Limitaciones y seguridad
 
 - Termux es un entorno Android, no una máquina virtual aislada.
 - El puente de comandos **no es un sandbox del sistema operativo**.
 - Los comandos aprobados se ejecutan con los permisos de tu usuario.
-- El agente no debe recibir claves, contraseñas ni archivos secretos del proyecto.
-- Revisa cada cambio y cada comando antes de aprobarlo.
+- Revisa cada cambio de archivo y cada comando antes de aprobarlo.
+- No entregues claves, contraseñas ni archivos secretos al agente.
