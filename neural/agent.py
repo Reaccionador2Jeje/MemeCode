@@ -123,7 +123,7 @@ class NeuralTextModel:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Agente local de codificación MemeCode Neural")
     parser.add_argument("--workspace", default=".")
-    parser.add_argument("--checkpoint", default="neural/checkpoints/memecode-neural.pt")
+    parser.add_argument("--checkpoint", default=str(Path(__file__).resolve().parent / "checkpoints" / "memecode-neural.pt"))
     parser.add_argument("--task", help="Pregunta para el modelo local")
     parser.add_argument("--draft", help="Generar un plan JSON de cambios con Neural")
     parser.add_argument("--apply-plan", metavar="RUTA", help="Revisar/aplicar un plan JSON guardado dentro del workspace")
