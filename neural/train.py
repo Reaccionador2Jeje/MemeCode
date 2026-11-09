@@ -5,7 +5,6 @@ import argparse
 import json
 from pathlib import Path
 import random
-import torch
 
 from neural.model import MemeCodeGPT, ModelConfig
 from neural.tokenizer import BOS, EOS, encode
@@ -65,18 +64,20 @@ def sample_batch(data: torch.Tensor, batch_size: int, block_size: int, device: t
     return x, y
 
 
-@torch.no_grad()
 def estimate_loss(model, train_data, validation_data, batch_size, block_size, device, batches=8):
     """Calcula pérdidas medias sin actualizar los pesos."""
+    import torch
+
     model.eval()
     results = {}
-    for name, data in (("train", train_data), ("validation", validation_data)):
-        losses = []
-        for _ in range(batches):
-            x, y = sample_batch(data, batch_size, block_size, device)
-            _, loss = model(x, y)
-            losses.append(loss.item())
-        results[name] = sum(losses) / len(losses)
+    with torch.no_grad():
+        for name, data in (("train", train_data), ("validation", validation_data)):
+            losses = []
+            for _ in range(batches):
+                x, y = sample_batch(data, batch_size, block_size, device)
+                _, loss = model(x, y)
+                losses.append(loss.item())
+            results[name] = sum(losses) / len(losses)
     model.train()
     return results
 
@@ -98,6 +99,13 @@ def main() -> int:
         parser.error("steps y batch-size deben ser positivos; block-size debe ser >= 8")
     if args.eval_interval < 1 or args.eval_batches < 1:
         parser.error("eval-interval y eval-batches deben ser positivos")
+    try:
+        import torch
+    except ImportError as exc:
+        raise SystemExit(
+            "No se puede entrenar MemeCode Neural: PyTorch no está instalado. "
+            "Las herramientas locales siguen funcionando sin esta dependencia opcional."
+        ) from exc
     try:
         samples = load_samples(Path(args.data))
         train_samples, validation_samples = split_samples(samples, args.eval_fraction, args.seed)
