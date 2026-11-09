@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from runtime.agent import AgentError, build_system_prompt, dispatch_tool, git_readonly, load_memingo_core, run_agent, run_review_cycle
+from runtime.agent import AgentError, build_system_prompt, dispatch_tool, git_readonly, load_memingo_core, run_agent, run_review_cycle, save_task_history, read_task_history
 
 class AgentToolTests(unittest.TestCase):
     def setUp(self):
@@ -67,6 +67,17 @@ class AgentToolTests(unittest.TestCase):
                                       model="test", max_repair_rounds=99)
         self.assertEqual(len(result), 3)
         self.assertEqual(run.call_count, 3)
+
+    def test_task_history_round_trip(self):
+        save_task_history(self.root, "make a demo", "Created demo.")
+        records = read_task_history(self.root)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["task"], "make a demo")
+        self.assertEqual(records[0]["result"], "Created demo.")
+
+    def test_task_history_rejects_parent_traversal(self):
+        with self.assertRaises(Exception):
+            save_task_history(self.root, "../outside", "no")
 
     def test_step_limit(self):
         def fake(messages,**kwargs):
