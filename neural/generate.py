@@ -23,7 +23,7 @@ def main() -> int:
     checkpoint = torch.load(path, map_location=device, weights_only=True)
     model = MemeCodeGPT(ModelConfig(**checkpoint["config"])).to(device)
     model.load_state_dict(checkpoint["state_dict"])
-    start = torch.tensor([[BOS, *encode(f"Usuario: {args.prompt}\\nMemeCode:")]], dtype=torch.long, device=device)
+    start = torch.tensor([[BOS, *encode(f"Usuario: {args.prompt}\nMemeCode:")]], dtype=torch.long, device=device)
     result = model.generate(start, max_new_tokens=max(1, min(args.tokens, 512)), temperature=args.temperature)[0].tolist()
     generated = result[len(start[0]):]
     if EOS in generated:
