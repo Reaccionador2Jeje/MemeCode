@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from runtime.agent import AgentError, build_system_prompt, dispatch_tool, git_readonly, load_memingo_core, run_agent
+from runtime.agent import AgentError, build_system_prompt, dispatch_tool, git_readonly, load_memingo_core, run_agent, run_review_cycle
 
 class AgentToolTests(unittest.TestCase):
     def setUp(self):
@@ -52,6 +52,22 @@ class AgentToolTests(unittest.TestCase):
             self.assertEqual(messages[-1]["role"],"tool")
             return {"role":"assistant","content":"Done."}
         self.assertEqual(run_agent("list files",self.root,api_key="test",model="test",request_fn=fake),"Done.")
+    def test_review_cycle_stops_when_clean(self):
+        reports = ["Tests passed.\\nMEMECODE_REVIEW: CLEAN"]
+        with patch("runtime.agent.run_agent", side_effect=reports) as run:
+            result = run_review_cycle("review project", self.root, api_key="x",
+                                      model="test", max_repair_rounds=3)
+        self.assertEqual(result, reports)
+        self.assertEqual(run.call_count, 1)
+
+    def test_review_cycle_has_a_hard_round_limit(self):
+        reports = ["MEMECODE_REVIEW: NEEDS_WORK"] * 3
+        with patch("runtime.agent.run_agent", side_effect=reports) as run:
+            result = run_review_cycle("review project", self.root, api_key="x",
+                                      model="test", max_repair_rounds=99)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(run.call_count, 3)
+
     def test_step_limit(self):
         def fake(messages,**kwargs):
             return {"role":"assistant","content":None,"tool_calls":[{"id":"loop","type":"function","function":{"name":"list_files","arguments":"{}"}}]}
