@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from runtime.agent import AgentError, build_system_prompt, dispatch_tool, load_memingo_core, run_agent
+from runtime.agent import AgentError, build_system_prompt, dispatch_tool, git_readonly, load_memingo_core, run_agent
 
 class AgentToolTests(unittest.TestCase):
     def setUp(self):
@@ -27,6 +27,18 @@ class AgentToolTests(unittest.TestCase):
             result=dispatch_tool(self.root,"write_file",{"path":"new.txt","content":"hello"})
         self.assertIn("Saved",result)
         self.assertEqual((self.root/"new.txt").read_text(encoding="utf-8"),"hello")
+    def test_git_inspection_requires_repository(self):
+        with self.assertRaises(Exception):
+            git_readonly(self.root, "status")
+
+    def test_git_status_uses_fixed_read_only_command(self):
+        (self.root / ".git").mkdir()
+        from unittest.mock import Mock
+        with patch("runtime.agent.subprocess.run", return_value=Mock(returncode=0, stdout="## main\\n")) as run:
+            self.assertEqual(git_readonly(self.root, "status"), "## main\\n")
+        self.assertEqual(run.call_args.args[0], ["git", "status", "--short", "--branch"])
+        self.assertFalse(run.call_args.kwargs["shell"])
+
     def test_final_response(self):
         def fake(messages,**kwargs):
             return {"role":"assistant","content":"Project inspected."}
