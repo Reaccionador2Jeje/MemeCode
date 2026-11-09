@@ -18,13 +18,15 @@ MemeCode is an early open-source coding agent. Its identity, workflow, capabilit
 - [x] Bounded review and repair cycle (1–3 passes)
 - [x] Read-only local Git inspection
 - [x] Android/Termux installation guide
+- [x] Interactive terminal chat
+- [x] Opt-in local task history
 
 ## Architecture
 
 - `src/main.mgo`: Memingo entry point and project configuration.
 - `prompts/system.mgo`: Memingo-side agent principles and safety policy.
 - `runtime/host_bridge.py`: minimal OS bridge. It confines file operations to the selected workspace and requires confirmation before executing commands.
-- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, plus read-only Git inspection and bounded review/repair mode.
+- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, read-only Git inspection, bounded review/repair, interactive chat, and opt-in local task history.
 - `docs/TERMUX.md`: phone-first setup instructions for Android/Termux.
 
 The agent's policy and workflow are Memingo-native; model networking and operating-system integration remain in Python. This is an early development tool, not a production-ready sandbox.
@@ -59,9 +61,13 @@ export MEMECODE_MODEL='gpt-4o-mini'
 python3 runtime/agent.py 'Inspect this project and explain its structure' --workspace .
 # Optional bounded review/repair (asks before each edit/command):
 python3 runtime/agent.py 'Review the project and run its tests' --workspace . --review --max-repair-rounds 2
+# Interactive chat; opt in to saving task summaries locally:
+python3 runtime/agent.py --workspace . --chat --save-history
+# Show saved tasks:
+python3 runtime/agent.py --workspace . --history
 ```
 
-The agent can list and read project files, propose edits with a diff and approval, and run approved commands. It requires a compatible model API key; API usage may have costs depending on the provider.
+The agent can list and read project files, propose edits with a diff and approval, run approved commands, chat interactively, and optionally save task summaries under `.memecode/history.jsonl`. History is local to the workspace and is only written when `--save-history` is supplied; inspect it with `--history`. It requires a compatible model API key; API usage may have costs depending on the provider.
 
 Inspect the workspace through the bridge:
 
