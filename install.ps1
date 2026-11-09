@@ -78,9 +78,12 @@ try {
     }
     $selectedModel = Read-Host "Modelo de IA [$currentModel] (Enter conserva el actual)"
     if ([string]::IsNullOrWhiteSpace($selectedModel)) { $selectedModel = $currentModel }
-    if ($selectedModel -match '\s') { Fail "Nombre de modelo inválido. No uses espacios." }
+    if ($selectedModel -match '\\s') { Fail "Nombre de modelo inválido. No uses espacios." }
+    Say "Abriendo la página oficial para crear tu API key..."
+    Start-Process "https://platform.openai.com/api-keys"
+    Say "Crea y copia tu API key. Después pégala en el siguiente campo oculto."
     @'
-import json, os, pathlib, sys
+import getpass, json, os, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 values = {"MEMECODE_API_KEY": "", "MEMECODE_MODEL": "gpt-4o-mini", "MEMECODE_BASE_URL": "https://api.openai.com/v1"}
 if path.is_file():
@@ -94,10 +97,16 @@ if path.is_file():
                     value = value[1:-1]
                 values[key] = value
 values["MEMECODE_MODEL"] = sys.argv[2]
+key = getpass.getpass("Pega MEMECODE_API_KEY (entrada oculta): ").strip()
+if key:
+    values["MEMECODE_API_KEY"] = key
+else:
+    print("No se introdujo una key; podrás configurarla después con: memecode setup")
 path.parent.mkdir(parents=True, exist_ok=True)
-path.write_text("# MemeCode private provider configuration. Do not share or commit.\n" + "".join(f"{k}={json.dumps(v)}\n" for k, v in values.items()), encoding="utf-8")
+path.write_text("# MemeCode private provider configuration. Do not share or commit.\\n" + "".join(f"{k}={json.dumps(v)}\\n" for k, v in values.items()), encoding="utf-8")
+print("Configuración guardada en:", path)
 '@ | & $venvPython - $configFile $selectedModel
-    if ($LASTEXITCODE -ne 0) { Fail "No se pudo guardar el modelo seleccionado." }
+    if ($LASTEXITCODE -ne 0) { Fail "No se pudo guardar la configuración." }
     Copy-Item -Force (Join-Path $PSScriptRoot "install.ps1") (Join-Path $AppDir "install.ps1")
     @'
 @echo off
