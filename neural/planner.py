@@ -87,14 +87,27 @@ def apply_plan(root: Path, plan: dict[str, Any], *, approve: bool = False) -> li
     if not approve:
         raise PlanError("Aplicación cancelada: revisa el plan y confirma con --yes.")
     base = root.resolve()
-    backup_root = base / ".memecode" / "backups"
+    backup_root = (base / ".memecode" / "backups").resolve()
+    if base not in backup_root.parents:
+        raise PlanError("La carpeta de copias de seguridad no es segura.")
     changes: list[tuple[Path, bytes | None]] = []
+    backup_files: list[tuple[Path, bytes]] = []
     try:
         # Revalidar todo antes de escribir, luego guardar copias de los archivos reemplazados.
         for operation in plan["operations"]:
             path = safe_path(base, operation["path"])
             previous = path.read_bytes() if path.exists() else None
             changes.append((path, previous))
+            if previous is not None:
+                backup_path = (backup_root / operation["path"]).resolve()
+                if base not in backup_path.parents:
+                    raise PlanError("La ruta de respaldo no es segura.")
+                if backup_path.exists():
+                    raise PlanError(f"Ya existe una copia de seguridad: {operation['path']}")
+                backup_files.append((backup_path, previous))
+        for backup_path, previous in backup_files:
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            backup_path.write_bytes(previous)
         for operation, (path, _) in zip(plan["operations"], changes):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(operation["content"], encoding="utf-8")
