@@ -103,7 +103,7 @@ if key:
 else:
     print("No se introdujo una key; podrás configurarla después con: memecode setup")
 path.parent.mkdir(parents=True, exist_ok=True)
-path.write_text("# MemeCode private provider configuration. Do not share or commit.\\n" + "".join(f"{k}={json.dumps(v)}\\n" for k, v in values.items()), encoding="utf-8")
+path.write_text("# MemeCode private provider configuration. Do not share or commit.\n" + "".join(f"{k}={json.dumps(v)}\n" for k, v in values.items()), encoding="utf-8")
 print("Configuración guardada en:", path)
 '@ | & $venvPython - $configFile $selectedModel
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo guardar la configuración." }
@@ -126,7 +126,11 @@ if /i "%~1"=="doctor" (
   if defined MEMECODE_API_KEY (echo API: clave presente en esta sesion) else (echo API: falta MEMECODE_API_KEY)
   exit /b
 )
-if /i "%~1"=="setup" (\n  "%PY%" "%AGENT%" --setup\n  exit /b %ERRORLEVEL%\n)\nif /i "%~1"=="update" (
+if /i "%~1"=="setup" (
+  "%PY%" "%AGENT%" --setup
+  exit /b %ERRORLEVEL%
+)
+if /i "%~1"=="update" (
   powershell -NoProfile -ExecutionPolicy Bypass -File "%APP_DIR%\install.ps1" -Action update
   exit /b %ERRORLEVEL%
 )
