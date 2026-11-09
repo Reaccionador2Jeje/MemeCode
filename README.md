@@ -24,6 +24,8 @@ MemeCode is an early open-source coding agent. Its identity, workflow, capabilit
 - `src/main.mgo`: Memingo entry point and project configuration.
 - `prompts/system.mgo`: Memingo-side agent principles and safety policy.
 - `runtime/host_bridge.py`: minimal OS bridge. It confines file operations to the selected workspace and requires confirmation before executing commands.
+- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, plus read-only Git inspection.
+- `docs/TERMUX.md`: phone-first setup instructions for Android/Termux.
 
 The agent's policy and workflow are Memingo-native; model networking and operating-system integration remain in Python. This is an early development tool, not a production-ready sandbox.
 
@@ -91,8 +93,9 @@ This is a development tool. Review commands before approving them and do not run
 1. Connect an OpenAI-compatible model provider using environment variables.
 2. Add a tool-calling agent loop with plan, edit, test, and review steps.
 3. Add diffs and per-file approval before changes.
-4. Add Git status/diff/commit helpers.
-5. Add a phone-friendly Termux workflow.
+4. [x] Add read-only Git status/diff/log inspection.
+5. Add approval-gated Git mutations and automated review/repair rounds.
+6. Improve the phone-friendly Termux workflow and add a local chat interface.
 
 ## License
 
