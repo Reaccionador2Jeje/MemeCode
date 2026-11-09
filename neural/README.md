@@ -95,6 +95,47 @@ python -m neural.agent --workspace . --test --yes
 - File reads reject common secret-file names and files larger than 256 KB.
 - Path traversal outside the workspace is rejected.
 - Test execution uses a fixed Python unittest command, no shell, and requires `--yes`.
-- There is no arbitrary shell tool, network tool, automatic Git push, or autonomous code editing.
+- No hay herramienta de shell arbitraria, red ni push automático a Git.
+- Neural puede redactar planes JSON y aplicarlos solo después de revisarlos y confirmarlos.
 - Without a trained checkpoint, the local tools still work, but natural-language model answers are unavailable.
 - This is an early, command-driven agent, not yet an autonomous coding assistant. The tiny starter model is not expected to reliably understand or write programs.
+
+## Neural 0.3: planificar y aplicar cambios
+
+El agente puede pedir al checkpoint local que redacte un plan JSON:
+
+```bash
+python -m neural.agent --draft "Crea un módulo de saludos en Python"
+```
+
+La salida del modelo es solo una propuesta. Guárdala como `plan.json` dentro del workspace, revísala y valida su vista previa:
+
+```bash
+python -m neural.agent --apply-plan plan.json
+```
+
+Solo después de revisar las rutas y el contenido, aplica el plan:
+
+```bash
+python -m neural.agent --apply-plan plan.json --yes
+```
+
+Formato admitido:
+
+```json
+{
+  "version": 1,
+  "summary": "Añadir un módulo de ejemplo",
+  "operations": [
+    {
+      "action": "create_file",
+      "path": "src/saludos.py",
+      "content": "def hola():\\n    return 'Hola'"
+    }
+  ]
+}
+```
+
+Se admiten como máximo ocho operaciones por plan. Las acciones son `create_file` y `replace_file`; no se admite shell, red, borrado ni comandos indicados por el modelo. Al reemplazar un archivo, se guarda una copia en `.memecode/backups/`. Los planes no se aplican sin `--yes`.
+
+**Limitación:** el Transformer de inicio es muy pequeño y puede generar JSON inválido o código incorrecto. Sin checkpoint, `--draft` no puede generar planes. Esta versión proporciona el flujo de planificación, validación y aplicación, no una autonomía comparable a un agente comercial. Ejecutar pruebas sigue siendo una acción separada y requiere confirmación.
