@@ -91,21 +91,27 @@ memecode uninstall
 memecode "Inspect this project and explain its structure"
 ```
 
-Set a compatible provider key in your current terminal session.
+## First-run API setup
 
-macOS / Linux / Termux:
+On first launch, MemeCode automatically creates a private configuration folder, a `.env` file, and a `.env.example` template. It then asks for the real key with hidden input, the model name, and (optionally) an OpenAI-compatible API base URL.
+
+You can run the setup again at any time:
+
 ```sh
-export MEMECODE_API_KEY='your-api-key'
-export MEMECODE_MODEL='gpt-4o-mini'
+memecode setup
 ```
 
-Windows PowerShell:
-```powershell
-$env:MEMECODE_API_KEY = "your-api-key"
-$env:MEMECODE_MODEL = "gpt-4o-mini"
+The configuration uses these exact variable names:
+
+```dotenv
+MEMECODE_API_KEY="your-real-api-key"
+MEMECODE_MODEL="gpt-4o-mini"
+MEMECODE_BASE_URL="https://api.openai.com/v1"
 ```
 
-API use may cost money depending on the provider. Keep keys private and review provider pricing before use.
+The private file is stored outside your project: `%APPDATA%\\MemeCode\\.env` on Windows, or `$XDG_CONFIG_HOME/memecode/.env` (default: `~/.config/memecode/.env`) on Termux, Linux, and macOS. On Unix-like systems its permissions are restricted to the current user. Environment variables with the same names override the file.
+
+The root `.env.example` is only a template. Never put a real key in a repository, share it, or commit `.env`. API use may cost money depending on the provider; check its pricing and model availability.
 
 ## Architecture
 
