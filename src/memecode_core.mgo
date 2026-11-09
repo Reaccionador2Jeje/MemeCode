@@ -1,0 +1,115 @@
+# MemeCode 2.0 — nucleo de agente escrito en Memingo.
+# Este archivo no usa Python, PyTorch, proveedores ni comandos de shell.
+# Ejecutar desde la carpeta del proyecto:
+#   memingo run /ruta/a/MemeCode/src/memecode_core.mgo
+#
+# Acciones configurables mediante variables de entorno:
+#   MEMECODE_ACTION=status|help|list|read
+#   MEMECODE_PATH=ruta/relativa (solo para read)
+
+vibe memecode_name = "MemeCode"
+vibe memecode_version = "2.0.0-mgo-preview"
+
+ritual is_secret_segment(segment) {
+    when segment == ".env" || starts_with(segment, ".env.") {
+        drop based
+    }
+    when segment == "id_rsa" || segment == "id_ed25519" {
+        drop based
+    }
+    when ends_with(segment, ".pem") || ends_with(segment, ".key") {
+        drop based
+    }
+    drop cringe
+}
+
+ritual is_safe_relative_path(path) {
+    when path == "" || starts_with(path, "/") || starts_with(path, "~") {
+        drop cringe
+    }
+    when contains(path, "\\") {
+        drop cringe
+    }
+
+    vibe segments = split(path, "/")
+    when contains(segments, "..") {
+        drop cringe
+    }
+
+    vibe index = 0
+    grind index < headcount(segments) {
+        when is_secret_segment(segments[index]) {
+            drop cringe
+        }
+        index = index + 1
+    }
+    drop based
+}
+
+ritual is_visible_entry(name) {
+    when name == ".git" || name == ".memecode" || name == "node_modules" || name == "__pycache__" {
+        drop cringe
+    }
+    when is_secret_segment(name) {
+        drop cringe
+    }
+    drop based
+}
+
+ritual visible_entries(entries) {
+    drop filter(entries, is_visible_entry)
+}
+
+ritual show_help() {
+    spill "MemeCode 2.0 — Memingo Core Preview"
+    spill "Acciones: status, list, read"
+    spill "Variables: MEMECODE_ACTION y MEMECODE_PATH"
+    spill "Solo lectura. No modifica archivos ni ejecuta comandos."
+}
+
+ritual show_status() {
+    vibe status = {
+        name: memecode_name,
+        version: memecode_version,
+        language: "Memingo (.mgo)",
+        provider: "none",
+        python_agent: "not used by this core",
+        pytorch: "not required",
+        mode: "read-only preview",
+        actions: ["status", "help", "list", "read"]
+    }
+    spill json_stringify(status)
+}
+
+ritual list_workspace() {
+    vibe entries = list_files(".")
+    spill json_stringify(visible_entries(entries))
+}
+
+ritual read_workspace_file(path) {
+    when !is_safe_relative_path(path) {
+        spill "MemeCode: ruta bloqueada. Usa una ruta relativa sin secretos ni '..'."
+        drop cringe
+    }
+    when !file_exists(path) {
+        spill "MemeCode: el archivo no existe."
+        drop cringe
+    }
+    spill read_file(path)
+    drop based
+}
+
+vibe action = env("MEMECODE_ACTION", "help")
+vibe requested_path = env("MEMECODE_PATH", "")
+
+when action == "status" {
+    show_status()
+} nah when action == "list" {
+    list_workspace()
+} nah when action == "read" {
+    read_workspace_file(requested_path)
+} nah when action == "help" {
+    show_help()
+} nah {
+    spill "MemeCode: acción desconocida. Usa MEMECODE_ACTION=help."
+}
