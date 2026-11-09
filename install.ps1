@@ -78,7 +78,7 @@ try {
     }
     $selectedModel = Read-Host "Modelo de IA [$currentModel] (Enter conserva el actual)"
     if ([string]::IsNullOrWhiteSpace($selectedModel)) { $selectedModel = $currentModel }
-    if ($selectedModel -match '\\s') { Fail "Nombre de modelo inválido. No uses espacios." }
+    if ($selectedModel -match '\s') { Fail "Nombre de modelo inválido. No uses espacios." }
     Say "Abriendo la página oficial para crear tu API key..."
     Start-Process "https://platform.openai.com/api-keys"
     Say "Crea y copia tu API key. Después pégala en el siguiente campo oculto."
