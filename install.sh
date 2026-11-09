@@ -50,7 +50,7 @@ say "Descargando el runtime Memingo..."
 git clone --depth 1 --branch "$MEMINGO_BRANCH" "$MEMINGO_REPO" "$TMP_DIR/Memingo" || fail "No se pudo descargar Memingo."
 say "Preparando entorno Python aislado..."
 "$PYTHON" -m venv "$APP_DIR/.venv" || fail "No se pudo crear el entorno virtual. Comprueba que Python incluya venv."
-"$APP_DIR/.venv/bin/python" -m pip install "$TMP_DIR/Memingo" || fail "No se pudo instalar Memingo."
+"$APP_DIR/.venv/bin/python" -m pip install --upgrade "$TMP_DIR/Memingo" || fail "No se pudo instalar Memingo."
 "$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/runtime/agent.py" "$APP_DIR/runtime/host_bridge.py" || fail "Falló la comprobación de Python."
 "$APP_DIR/.venv/bin/python" -m memingo --help >/dev/null 2>&1 || "$APP_DIR/.venv/bin/memingo" --help >/dev/null 2>&1 || fail "Memingo no quedó disponible."
 
