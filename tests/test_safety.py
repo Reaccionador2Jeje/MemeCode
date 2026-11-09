@@ -31,5 +31,9 @@ class WorkspaceSafetyTests(unittest.TestCase):
         with self.assertRaises(bridge.WorkspaceError):
             bridge.run_command(self.root, ["sudo", "echo", "no"], 5)
 
+    def test_blocks_shell_wrappers(self):
+        with self.assertRaises(bridge.WorkspaceError):
+            bridge.run_command(self.root, ["bash", "-c", "echo unsafe"], 5)
+
 if __name__ == "__main__":
     unittest.main()
