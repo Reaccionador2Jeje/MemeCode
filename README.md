@@ -74,7 +74,7 @@ Run a command only after reviewing and approving it:
 python3 runtime/host_bridge.py --workspace . run -- python3 --version
 ```
 
-The bridge asks for confirmation. It does not invoke a shell, and it rejects commands that attempt to escape the workspace or use a blocked executable.
+The bridge asks for confirmation and passes commands as argument arrays without invoking a shell. It blocks selected executables, but this is not a filesystem sandbox: an approved program may still access files outside the workspace.
 
 ## Safety model
 
