@@ -8,3 +8,6 @@ __pycache__/
 .venv/
 # MemeCode local state
 .memecode/
+
+# Locally trained neural checkpoints can be large.
+neural/checkpoints/
