@@ -2,13 +2,14 @@
 
 **An open-source coding-agent project built around Memingo.**
 
-MemeCode is an early open-source coding agent. Its identity, workflow, capabilities, and safety policy are defined in Memingo (`.mgo`); a small Python adapter connects that core to an OpenAI-compatible model API and local workspace tools.
+MemeCode 2.0 begins a staged migration to a `.mgo`-first core. The new `src/memecode_core.mgo` provides dependency-free, read-only workspace commands without Python imports, PyTorch, or an AI provider. The existing Python agent remains available during migration because the current Memingo v0.2 interpreter itself is Python-based; a fully native runtime is a separate future project.
 
 ## Project status
 
 **Status:** Early development — MVP foundation
 
-- [x] Memingo policy core and Python host bridge
+- [x] Memingo policy core and Python host bridge (legacy path)
+- [x] Memingo 2.0 read-only core preview (`src/memecode_core.mgo`)
 - [x] Workspace-confined file operations and approval-gated edits
 - [x] Approval-gated command execution
 - [x] OpenAI-compatible tool-calling agent loop
@@ -167,9 +168,22 @@ memecode-neural --apply-plan plan.json --yes
 
 The installer registers both launchers on Termux, Linux, macOS, and Windows. Neural works in the current directory as its workspace. Plan generation needs an available trained checkpoint; file listing/reading and plan validation do not require a model checkpoint.
 
+## MemeCode 2.0 — Memingo core preview
+
+Run the new read-only `.mgo` core from the project root:
+
+```sh
+MEMECODE_ACTION=status memingo run src/memecode_core.mgo
+MEMECODE_ACTION=list memingo run src/memecode_core.mgo
+MEMECODE_ACTION=read MEMECODE_PATH=README.md memingo run src/memecode_core.mgo
+```
+
+See [docs/MIGRATION_MEMINGO.md](docs/MIGRATION_MEMINGO.md) for scope and migration stages.
+
 ## Architecture
 
-- `src/main.mgo` and `src/agent_core.mgo`: Memingo entry point and policy.
+- `src/memecode_core.mgo`: new read-only MemeCode 2.0 core written in Memingo.
+- `src/main.mgo` and `src/agent_core.mgo`: previous Memingo entry point and policy.
 - `runtime/host_bridge.py`: workspace-scoped file and command bridge.
 - `runtime/agent.py`: model adapter, tool loop, approvals, Git/GitHub tools, review cycle, chat, and history.
 - `install.sh`: Termux, Linux, and macOS installer.
