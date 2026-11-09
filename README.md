@@ -65,7 +65,7 @@ The bridge asks for confirmation. It does not invoke a shell, and it rejects com
 ## Safety model
 
 - File paths are resolved and checked against the workspace root, including symlinks.
-- Commands run with the workspace as their working directory.
+- Commands run with the workspace as their working directory and a reduced environment that omits credential-like variables.\n- Command execution is **not an OS sandbox**: an approved program still runs with your user permissions. Review every command and only run MemeCode in projects you trust.
 - Commands are passed as argument arrays; shell interpolation is not enabled.
 - Every command requires an interactive approval.
 - Destructive/system-administration commands are blocked by default.
