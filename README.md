@@ -113,6 +113,32 @@ The private file is stored outside your project: `%APPDATA%\\MemeCode\\.env` on 
 
 During installation, both Termux/Linux/macOS and Windows installers first ask which model to use, then open (or display) the official API-key page, and finally ask you to paste the copied key using hidden input. Press Enter to keep the current model (default: `gpt-4o-mini`). You can repeat the same sequence later with `memecode setup`. The root `.env.example` is only a template. Never put a real key in a repository, share it, or commit `.env`. API use may cost money depending on the provider; check its pricing and model availability.
 
+## Experimental local model: MemeCode Neural
+
+The repository now includes an independent, experimental character/byte-level Transformer written in Python with PyTorch. It trains locally from JSONL prompt/response examples and does not call a model API.
+
+Install the optional training dependency in an isolated environment:
+
+```sh
+python -m pip install -r requirements-neural.txt
+```
+
+Train the starter model:
+
+```sh
+python -m neural.train --steps 500
+```
+
+Generate a sample:
+
+```sh
+python -m neural.generate "¿Qué es Memingo?"
+```
+
+Add reviewed examples to `neural/dataset/examples.jsonl`, one JSON object per line with `prompt` and `response` string fields. Checkpoints are written under `neural/checkpoints/` and should remain local.
+
+**Important status:** this is a research prototype with a tiny starter dataset. Its answers will be weak until it is trained on a much larger, carefully reviewed corpus. PyTorch is an optional dependency and may not be readily installable on Android/Termux. The existing `memecode` coding-agent command still uses its current provider adapter; the local model is not yet connected to its tool-calling loop. No API keys are needed to train or test the standalone Neural prototype.
+
 ## Architecture
 
 - `src/main.mgo` and `src/agent_core.mgo`: Memingo entry point and policy.
