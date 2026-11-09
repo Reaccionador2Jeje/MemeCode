@@ -92,7 +92,6 @@ case "${1:-}" in
 esac
 LAUNCHER
 chmod +x "$BIN_DIR/memecode"
-cp "$APP_DIR/install.sh" "$APP_DIR/install.sh.tmp" 2>/dev/null || true
 say "¡Instalación completada!"
 say "Ejecuta: memecode"
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "Añade $BIN_DIR a PATH para ejecutar memecode desde cualquier carpeta." ;; esac
