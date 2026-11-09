@@ -15,16 +15,16 @@ MemeCode is an early open-source coding agent. Its identity, workflow, capabilit
 - [x] Explicit confirmation before running shell commands
 - [x] OpenAI-compatible chat-completions provider adapter
 - [x] Agent planning and tool-call loop\n- [x] Runtime loads its system policy from Memingo
-- [ ] Automated review and repair cycle
-- [ ] Git/GitHub integration
-- [ ] Android/Termux installation guide
+- [x] Bounded review and repair cycle (1–3 passes)
+- [x] Read-only local Git inspection
+- [x] Android/Termux installation guide
 
 ## Architecture
 
 - `src/main.mgo`: Memingo entry point and project configuration.
 - `prompts/system.mgo`: Memingo-side agent principles and safety policy.
 - `runtime/host_bridge.py`: minimal OS bridge. It confines file operations to the selected workspace and requires confirmation before executing commands.
-- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, plus read-only Git inspection.
+- `runtime/agent.py`: model adapter, approval-gated file editing and command tools, plus read-only Git inspection and bounded review/repair mode.
 - `docs/TERMUX.md`: phone-first setup instructions for Android/Termux.
 
 The agent's policy and workflow are Memingo-native; model networking and operating-system integration remain in Python. This is an early development tool, not a production-ready sandbox.
@@ -57,6 +57,8 @@ export MEMECODE_MODEL='gpt-4o-mini'
 # Optional: use another compatible provider
 # export MEMECODE_BASE_URL='https://provider.example/v1'
 python3 runtime/agent.py 'Inspect this project and explain its structure' --workspace .
+# Optional bounded review/repair (asks before each edit/command):
+python3 runtime/agent.py 'Review the project and run its tests' --workspace . --review --max-repair-rounds 2
 ```
 
 The agent can list and read project files, propose edits with a diff and approval, and run approved commands. It requires a compatible model API key; API usage may have costs depending on the provider.
@@ -94,7 +96,7 @@ This is a development tool. Review commands before approving them and do not run
 2. Add a tool-calling agent loop with plan, edit, test, and review steps.
 3. Add diffs and per-file approval before changes.
 4. [x] Add read-only Git status/diff/log inspection.
-5. Add approval-gated Git mutations and automated review/repair rounds.
+5. Add approval-gated Git mutations and GitHub integration.
 6. Improve the phone-friendly Termux workflow and add a local chat interface.
 
 ## License
