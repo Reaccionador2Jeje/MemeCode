@@ -19,6 +19,8 @@ if ($Action -eq "uninstall") {
         Remove-Item -Recurse -Force $AppDir
     }
     if (Test-Path $Launcher) { Remove-Item -Force $Launcher }
+    $NeuralLauncher = Join-Path $BinDir "memecode-neural.cmd"
+    if (Test-Path $NeuralLauncher) { Remove-Item -Force $NeuralLauncher }
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($userPath) {
         $parts = $userPath -split ";" | Where-Object { $_.TrimEnd("\") -ne $BinDir.TrimEnd("\") }
@@ -130,6 +132,12 @@ if /i "%~1"=="setup" (
   "%PY%" "%AGENT%" --setup
   exit /b %ERRORLEVEL%
 )
+if /i "%~1"=="neural" (
+  set "PYTHONPATH=%APP_DIR%;%PYTHONPATH%"
+  shift
+  "%PY%" -m neural.agent --workspace "%CD%" %*
+  exit /b %ERRORLEVEL%
+)
 if /i "%~1"=="update" (
   powershell -NoProfile -ExecutionPolicy Bypass -File "%APP_DIR%\install.ps1" -Action update
   exit /b %ERRORLEVEL%
@@ -139,7 +147,7 @@ if /i "%~1"=="uninstall" (
   exit /b %ERRORLEVEL%
 )
 if /i "%~1"=="help" (
-  echo Uso: memecode [setup^|doctor^|update^|uninstall^|tarea...]
+  echo Uso: memecode [setup^|doctor^|neural^|update^|uninstall^|tarea...]
   echo Sin argumentos abre el chat en la carpeta actual.
   exit /b 0
 )
@@ -150,6 +158,21 @@ if "%~1"=="" (
 )
 exit /b %ERRORLEVEL%
 '@ | Set-Content -Encoding ASCII $Launcher
+    $NeuralLauncher = Join-Path $BinDir "memecode-neural.cmd"
+    @'
+@echo off
+setlocal
+set "APP_DIR=%LOCALAPPDATA%\MemeCode"
+if defined MEMECODE_HOME set "APP_DIR=%MEMECODE_HOME%"
+set "PY=%APP_DIR%\.venv\Scripts\python.exe"
+if not exist "%PY%" (
+  echo MemeCode Neural no esta instalado correctamente.
+  exit /b 1
+)
+set "PYTHONPATH=%APP_DIR%;%PYTHONPATH%"
+"%PY%" -m neural.agent --workspace "%CD%" %*
+exit /b %ERRORLEVEL%
+'@ | Set-Content -Encoding ASCII $NeuralLauncher
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $pathParts = @()
     if ($userPath) { $pathParts = @($userPath -split ";" | Where-Object { $_ }) }
@@ -160,6 +183,7 @@ exit /b %ERRORLEVEL%
     if (($env:Path -split ";") -notcontains $BinDir) { $env:Path += ";$BinDir" }
     Say "¡Instalación completada!"
     Say "Ejecuta: memecode"
+    Say "Ejecuta Neural: memecode neural --help o memecode-neural --help"
     Say "Comprueba la instalación con: memecode doctor"
 } finally {
     if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir }
