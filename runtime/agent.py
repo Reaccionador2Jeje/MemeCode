@@ -183,7 +183,8 @@ def main() -> int:
         return 2
     try:
         root=workspace_root(args.workspace)
-        core=load_memingo_core(root)\n        answer=run_agent(args.task,root,api_key=api_key,model=args.model,base_url=args.base_url,max_steps=max(1,min(args.max_steps,12)),system_prompt=build_system_prompt(core))
+        core=load_memingo_core(root)
+        answer=run_agent(args.task,root,api_key=api_key,model=args.model,base_url=args.base_url,max_steps=max(1,min(args.max_steps,12)),system_prompt=build_system_prompt(core))
         print("\nMemeCode:\n"+answer)
         return 0
     except (AgentError,WorkspaceError,OSError) as exc:
