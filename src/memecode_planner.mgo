@@ -1,0 +1,126 @@
+# MemeCode 2.0.1 — planificador Memingo (solo vista previa).
+# Ejecutar desde la raiz del proyecto:
+# MEMECODE_PLAN_JSON='{"version":1,"summary":"Crear saludo","operations":[{"action":"create_file","path":"hola.txt","content":"Hola"}]}' memingo run src/memecode_planner.mgo
+#
+# Este modulo valida y muestra planes. NO escribe ni ejecuta nada.
+
+vibe secret_names = [".env", ".env.local", ".env.production", "id_rsa", "id_ed25519"]
+
+ritual is_secret_part(part) {
+    when contains(secret_names, part) {
+        drop based
+    }
+    when ends_with(part, ".pem") || ends_with(part, ".key") {
+        drop based
+    }
+    drop cringe
+}
+
+ritual safe_plan_path(path) {
+    when path == "" || starts_with(path, "/") || starts_with(path, "~") {
+        drop cringe
+    }
+    when contains(path, "\\") {
+        drop cringe
+    }
+    vibe parts = split(path, "/")
+    when contains(parts, "..") {
+        drop cringe
+    }
+    when contains(parts, ".") {
+        drop cringe
+    }
+    vibe index = 0
+    grind index < headcount(parts) {
+        when is_secret_part(parts[index]) {
+            drop cringe
+        }
+        index = index + 1
+    }
+    drop based
+}
+
+ritual validate_operation(operation, seen_paths) {
+    vibe action = operation.action
+    vibe path = operation.path
+    vibe content = operation.content
+
+    when action != "create_file" && action != "replace_file" {
+        drop "Accion no permitida."
+    }
+    when whatkind(path) != "caption" || !safe_plan_path(path) {
+        drop "Ruta bloqueada o invalida."
+    }
+    when contains(seen_paths, path) {
+        drop "Ruta repetida dentro del plan."
+    }
+    when whatkind(content) != "caption" {
+        drop "El contenido debe ser texto."
+    }
+    when headcount(content) > 256000 {
+        drop "El contenido supera 256 KB."
+    }
+    when action == "create_file" && file_exists(path) {
+        drop "No se sobrescribira un archivo existente."
+    }
+    when action == "replace_file" && !file_exists(path) {
+        drop "No se puede reemplazar un archivo inexistente."
+    }
+    drop "OK"
+}
+
+ritual preview_plan(plan) {
+    when plan.version != 1 {
+        spill "Plan rechazado: version debe ser 1."
+        drop cringe
+    }
+    when whatkind(plan.summary) != "caption" || trim(plan.summary) == "" {
+        spill "Plan rechazado: falta un resumen de texto."
+        drop cringe
+    }
+    vibe operations = plan.operations
+    when headcount(operations) < 1 || headcount(operations) > 8 {
+        spill "Plan rechazado: debe contener entre 1 y 8 operaciones."
+        drop cringe
+    }
+
+    vibe seen_paths = []
+    vibe previews = []
+    vibe index = 0
+    grind index < headcount(operations) {
+        vibe operation = operations[index]
+        vibe validation = validate_operation(operation, seen_paths)
+        when validation != "OK" {
+            spill "Plan rechazado en operacion " + (index + 1) + ": " + validation
+            drop cringe
+        }
+        append(seen_paths, operation.path)
+        vibe exists = file_exists(operation.path)
+        vibe state = "nuevo"
+        when exists {
+            state = "existente"
+        }
+        append(previews, operation.action + ": " + operation.path + " (" + state + ")")
+        index = index + 1
+    }
+
+    spill "PLAN VALIDADO — VISTA PREVIA"
+    spill "Resumen: " + plan.summary
+    vibe line = 0
+    grind line < headcount(previews) {
+        spill "- " + previews[line]
+        line = line + 1
+    }
+    spill "No se modifico ningun archivo. La aplicacion aun no esta habilitada."
+    drop based
+}
+
+vibe raw_plan = env("MEMECODE_PLAN_JSON", "")
+when trim(raw_plan) == "" {
+    spill "MemeCode Planner 2.0.1"
+    spill "Define MEMECODE_PLAN_JSON con un plan JSON version 1."
+    spill "Este comando solo valida y muestra una vista previa."
+} nah {
+    vibe plan = json_parse(raw_plan)
+    preview_plan(plan)
+}
