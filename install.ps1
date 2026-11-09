@@ -78,7 +78,7 @@ try {
     }
     $selectedModel = Read-Host "Modelo de IA [$currentModel] (Enter conserva el actual)"
     if ([string]::IsNullOrWhiteSpace($selectedModel)) { $selectedModel = $currentModel }
-    if ($selectedModel -match '\\s') { Fail "Nombre de modelo inválido. No uses espacios." }
+    if ($selectedModel -match '\s') { Fail "Nombre de modelo inválido. No uses espacios." }
     @'
 import json, os, pathlib, sys
 path = pathlib.Path(sys.argv[1])
@@ -95,7 +95,7 @@ if path.is_file():
                 values[key] = value
 values["MEMECODE_MODEL"] = sys.argv[2]
 path.parent.mkdir(parents=True, exist_ok=True)
-path.write_text("# MemeCode private provider configuration. Do not share or commit.\\n" + "".join(f"{k}={json.dumps(v)}\\n" for k, v in values.items()), encoding="utf-8")
+path.write_text("# MemeCode private provider configuration. Do not share or commit.\n" + "".join(f"{k}={json.dumps(v)}\n" for k, v in values.items()), encoding="utf-8")
 '@ | & $venvPython - $configFile $selectedModel
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo guardar el modelo seleccionado." }
     Copy-Item -Force (Join-Path $PSScriptRoot "install.ps1") (Join-Path $AppDir "install.ps1")
