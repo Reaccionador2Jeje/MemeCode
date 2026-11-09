@@ -15,7 +15,10 @@ def main() -> int:
     parser.add_argument("--model", default="neural/checkpoints/memecode-neural.pt")
     parser.add_argument("--tokens", type=int, default=160)
     parser.add_argument("--temperature", type=float, default=0.8)
+    parser.add_argument("--top-k", type=int, default=40, help="Limita la selección a los K tokens más probables; 0 desactiva el filtro")
     args = parser.parse_args()
+    if args.tokens < 1 or args.temperature <= 0 or args.top_k < 0:
+        parser.error("tokens debe ser positivo, temperature > 0 y top-k >= 0")
     path = Path(args.model)
     if not path.is_file():
         raise SystemExit(f"No existe el checkpoint: {path}. Entrena primero con python -m neural.train")
@@ -24,7 +27,7 @@ def main() -> int:
     model = MemeCodeGPT(ModelConfig(**checkpoint["config"])).to(device)
     model.load_state_dict(checkpoint["state_dict"])
     start = torch.tensor([[BOS, *encode(f"Usuario: {args.prompt}\nMemeCode:")]], dtype=torch.long, device=device)
-    result = model.generate(start, max_new_tokens=max(1, min(args.tokens, 512)), temperature=args.temperature)[0].tolist()
+    result = model.generate(\n        start, max_new_tokens=min(args.tokens, 512), temperature=args.temperature,\n        top_k=args.top_k or None, eos_token_id=EOS,\n    )[0].tolist()
     generated = result[len(start[0]):]
     if EOS in generated:
         generated = generated[:generated.index(EOS)]
