@@ -78,15 +78,47 @@ class MemeCodeGPT(nn.Module):
         return logits, loss
 
     @torch.no_grad()
-    def generate(self, tokens: torch.Tensor, max_new_tokens: int = 120, temperature: float = 0.8):
+    def generate(
+        self,
+        tokens: torch.Tensor,
+        max_new_tokens: int = 120,
+        temperature: float = 0.8,
+        top_k: int | None = 40,
+        eos_token_id: int | None = 257,
+    ) -> torch.Tensor:
+        """Genera tokens con muestreo top-k y parada opcional al llegar a EOS."""
+        if tokens.ndim != 2 or tokens.size(1) == 0:
+            raise ValueError("tokens debe tener forma [batch, secuencia] no vacía")
+        if max_new_tokens < 0:
+            raise ValueError("max_new_tokens no puede ser negativo")
+        if temperature <= 0:
+            raise ValueError("temperature debe ser mayor que cero")
+        if top_k is not None and top_k < 1:
+            raise ValueError("top_k debe ser None o un entero >= 1")
+        if eos_token_id is not None and not 0 <= eos_token_id < self.config.vocab_size:
+            raise ValueError("eos_token_id fuera del vocabulario")
+
         self.eval()
+        finished = torch.zeros(tokens.size(0), dtype=torch.bool, device=tokens.device)
         for _ in range(max_new_tokens):
             context = tokens[:, -self.config.block_size:]
             logits, _ = self(context)
-            logits = logits[:, -1, :] / max(temperature, 0.05)
+            logits = logits[:, -1, :] / temperature
+            if top_k is not None and top_k < logits.size(-1):
+                threshold = torch.topk(logits, top_k, dim=-1).values[:, -1, None]
+                logits = logits.masked_fill(logits < threshold, float("-inf"))
             probabilities = torch.softmax(logits, dim=-1)
             next_token = torch.multinomial(probabilities, num_samples=1)
+            if eos_token_id is not None:
+                next_token = torch.where(
+                    finished[:, None],
+                    torch.full_like(next_token, eos_token_id),
+                    next_token,
+                )
+                finished |= next_token.squeeze(1).eq(eos_token_id)
             tokens = torch.cat((tokens, next_token), dim=1)
+            if eos_token_id is not None and bool(finished.all()):
+                break
         return tokens
 
     def config_dict(self) -> dict:
