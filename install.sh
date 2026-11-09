@@ -21,7 +21,7 @@ case "$ACTION" in
       read -r answer
       case "$answer" in y|Y|yes|YES) rm -rf "$APP_DIR" ;; *) say "Cancelado."; exit 0 ;; esac
     fi
-    rm -f "$BIN_DIR/memecode"
+    rm -f "$BIN_DIR/memecode" "$BIN_DIR/memecode-neural"
     say "MemeCode desinstalado. Tus proyectos y claves externas no se modificaron."
     exit 0
     ;;
@@ -124,6 +124,11 @@ case "${1:-}" in
   setup)
     exec "$PY" "$AGENT" --setup
     ;;
+  neural)
+    shift
+    export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
+    exec "$PY" -m neural.agent --workspace "$PWD" "$@"
+    ;;
   update)
     exec sh "$APP_DIR/install.sh" update
     ;;
@@ -131,7 +136,7 @@ case "${1:-}" in
     exec sh "$APP_DIR/install.sh" uninstall
     ;;
   help|-h|--help)
-    echo "Uso: memecode [setup|doctor|update|uninstall|--chat|tarea...]"
+    echo "Uso: memecode [setup|doctor|neural|update|uninstall|--chat|tarea...]"
     echo "Sin argumentos: abre el chat en la carpeta actual."
     echo "Ejemplo: memecode --workspace . 'Revisa este proyecto'"
     ;;
@@ -144,6 +149,20 @@ case "${1:-}" in
 esac
 LAUNCHER
 chmod +x "$BIN_DIR/memecode"
+
+cat > "$BIN_DIR/memecode-neural" <<'NEURAL_LAUNCHER'
+#!/bin/sh
+set -eu
+APP_DIR="${MEMECODE_HOME:-$HOME/.local/share/memecode}"
+PY="$APP_DIR/.venv/bin/python"
+if [ ! -x "$PY" ] || [ ! -f "$APP_DIR/neural/agent.py" ]; then
+  echo "MemeCode Neural no está instalado. Ejecuta el instalador oficial." >&2
+  exit 1
+fi
+export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PY" -m neural.agent --workspace "$PWD" "$@"
+NEURAL_LAUNCHER
+chmod +x "$BIN_DIR/memecode-neural"
 curl -fsSL "https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh" -o "$APP_DIR/install.sh"
 say "¡Instalación completada!"
 say "Ejecuta: memecode"
