@@ -11,6 +11,8 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+import re
+from urllib.parse import quote
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +92,10 @@ TOOLS = [
     {"type":"function","function":{"name":"git_status","description":"Read-only Git status for the approved workspace.","parameters":{"type":"object","properties":{},"required":[],"additionalProperties":False}}},
     {"type":"function","function":{"name":"git_diff","description":"Read-only unstaged and staged diff summary for the approved workspace.","parameters":{"type":"object","properties":{},"required":[],"additionalProperties":False}}},
     {"type":"function","function":{"name":"git_log","description":"Read-only recent commit history (up to five commits).","parameters":{"type":"object","properties":{},"required":[],"additionalProperties":False}}},
+    {"type":"function","function":{"name":"git_branch_create","description":"Create and switch to a local branch after explicit user approval. Never pushes.","parameters":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":False}}},
+    {"type":"function","function":{"name":"git_commit","description":"Show the staged diff and create a local commit only after explicit user approval. Never pushes.","parameters":{"type":"object","properties":{"message":{"type":"string"}},"required":["message"],"additionalProperties":False}}},
+    {"type":"function","function":{"name":"github_repo_info","description":"Read public GitHub repository metadata without authentication or writes.","parameters":{"type":"object","properties":{"owner":{"type":"string"},"repo":{"type":"string"}},"required":["owner","repo"],"additionalProperties":False}}},
+    {"type":"function","function":{"name":"github_branches","description":"List public branches of a GitHub repository without authentication or writes.","parameters":{"type":"object","properties":{"owner":{"type":"string"},"repo":{"type":"string"}},"required":["owner","repo"],"additionalProperties":False}}},
     {"type":"function","function":{"name":"write_file","description":"Propose a file change. User approval is required after showing a diff.","parameters":{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"],"additionalProperties":False}}},
     {"type":"function","function":{"name":"run_command","description":"Run a command in the workspace after showing it and obtaining approval.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}},"timeout":{"type":"integer","minimum":1,"maximum":120}},"required":["argv"],"additionalProperties":False}}}
 ]
@@ -136,6 +142,87 @@ def git_readonly(root: Path, action: str) -> str:
         raise WorkspaceError(output or f"Git exited with code {result.returncode}.")
     return output or "(No output)"
 
+def git_mutation(root: Path, action: str, arguments: dict[str, Any]) -> str:
+    """Perform narrowly scoped local Git changes only after interactive approval."""
+    if not (root / ".git").exists():
+        raise WorkspaceError("The workspace is not a Git repository.")
+    environment = {
+        key: value for key, value in os.environ.items()
+        if key in {"PATH", "HOME", "PREFIX", "TMPDIR", "LANG", "LC_ALL", "TERM"}
+    }
+    environment.update({"GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"})
+    if action == "branch":
+        name = str(arguments.get("name", ""))
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,79}", name) or name.endswith(("/", ".", ".lock")) or ".." in name or "//" in name:
+            raise WorkspaceError("Invalid branch name.")
+        exists = subprocess.run(["git", "branch", "--list", name], cwd=root, env=environment,
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True, timeout=10, check=False)
+        if exists.returncode or exists.stdout.strip():
+            raise WorkspaceError("Branch already exists or could not be checked.")
+        print(f"\nMemeCode proposes creating local branch: {name}")
+        if not _approve("Create and switch to this branch?"):
+            return "User declined branch creation."
+        result = subprocess.run(["git", "switch", "-c", name], cwd=root, env=environment,
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, timeout=20, check=False)
+    elif action == "commit":
+        message = str(arguments.get("message", "")).strip()
+        if not message or len(message) > 200 or "\n" in message:
+            raise WorkspaceError("Commit message must be 1-200 characters on one line.")
+        staged = subprocess.run(["git", "--no-pager", "diff", "--cached", "--no-ext-diff", "--no-color", "--"],
+                                cwd=root, env=environment, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, timeout=10, check=False)
+        if staged.returncode or not staged.stdout.strip():
+            raise WorkspaceError("No staged changes to commit. Stage files manually first.")
+        print("\nMemeCode proposes this local commit:")
+        print(staged.stdout[-GIT_OUTPUT_LIMIT:])
+        print(f"Commit message: {message}")
+        if not _approve("Create this local commit?"):
+            return "User declined commit creation."
+        result = subprocess.run(["git", "commit", "-m", message], cwd=root, env=environment,
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, timeout=30, check=False)
+    else:
+        raise WorkspaceError("Unsupported Git mutation.")
+    output = result.stdout[-GIT_OUTPUT_LIMIT:]
+    if result.returncode:
+        raise WorkspaceError(output or f"Git exited with code {result.returncode}.")
+    return output or "Git operation completed."
+
+
+def github_public_api(owner: str, repository: str, endpoint: str) -> str:
+    """Read a public GitHub repository endpoint; no token and no write methods."""
+    pattern = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})"
+    if not re.fullmatch(pattern, owner) or not re.fullmatch(pattern, repository):
+        raise AgentError("Invalid GitHub owner or repository name.")
+    if endpoint not in {"", "/branches?per_page=30"}:
+        raise AgentError("Unsupported GitHub API endpoint.")
+    url = f"https://api.github.com/repos/{quote(owner)}/{quote(repository)}{endpoint}"
+    request = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "MemeCode/0.3",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            payload = json.loads(response.read(100_000).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise AgentError(f"GitHub API returned HTTP {exc.code}.") from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise AgentError(f"Could not read GitHub public API: {exc}") from exc
+    if endpoint == "/branches?per_page=30":
+        if not isinstance(payload, list):
+            raise AgentError("GitHub returned an unexpected branch list.")
+        return json.dumps([{"name": item.get("name"), "protected": item.get("protected")}
+                           for item in payload if isinstance(item, dict)], ensure_ascii=False)
+    if not isinstance(payload, dict):
+        raise AgentError("GitHub returned unexpected repository metadata.")
+    fields = ("full_name", "description", "html_url", "default_branch", "visibility", "archived", "stargazers_count", "open_issues_count")
+    return json.dumps({key: payload.get(key) for key in fields}, ensure_ascii=False)
+
+
 def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
     try:
         if name == "list_files":
@@ -144,6 +231,14 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
             return read_file(root, arguments["path"])
         if name in {"git_status", "git_diff", "git_log"}:
             return git_readonly(root, name.removeprefix("git_"))
+        if name == "git_branch_create":
+            return git_mutation(root, "branch", arguments)
+        if name == "git_commit":
+            return git_mutation(root, "commit", arguments)
+        if name == "github_repo_info":
+            return github_public_api(arguments["owner"], arguments["repo"], "")
+        if name == "github_branches":
+            return github_public_api(arguments["owner"], arguments["repo"], "/branches?per_page=30")
         if name == "write_file":
             path, new_content = arguments["path"], arguments["content"]
             target = safe_path(root, path)
@@ -162,7 +257,7 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
                 raise WorkspaceError("argv must be a list of strings.")
             return f"Command exit code: {run_command(root, argv, int(arguments.get('timeout',30)))}"
         raise AgentError(f"Unknown tool: {name}")
-    except (KeyError, TypeError, ValueError, WorkspaceError, OSError, UnicodeError) as exc:
+    except (KeyError, TypeError, ValueError, WorkspaceError, AgentError, OSError, UnicodeError) as exc:
         return f"Tool error: {exc}"
 
 def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str, base_url: str) -> dict[str,Any]:
