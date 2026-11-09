@@ -82,7 +82,7 @@ if path.is_file():
                 values[key] = value
 values["MEMECODE_MODEL"] = sys.argv[2]
 path.parent.mkdir(parents=True, exist_ok=True)
-path.write_text("# MemeCode private provider configuration. Do not share or commit.\\n" + "".join(f"{k}={json.dumps(v)}\\n" for k, v in values.items()), encoding="utf-8")
+path.write_text("# MemeCode private provider configuration. Do not share or commit.\n" + "".join(f"{k}={json.dumps(v)}\n" for k, v in values.items()), encoding="utf-8")
 os.chmod(path, 0o600)
 PY
 
@@ -103,6 +103,9 @@ case "${1:-}" in
     "$APP_DIR/.venv/bin/memingo" --help >/dev/null 2>&1 && echo "Memingo: OK" || echo "Memingo: revisar"
     "$PY" -m py_compile "$AGENT" "$APP_DIR/runtime/host_bridge.py" && echo "Python: OK"
     if [ -n "${MEMECODE_API_KEY:-}" ]; then echo "API: clave presente en esta sesión"; else echo "API: falta MEMECODE_API_KEY (no compartas tu clave)"; fi
+    ;;
+  setup)
+    exec "$PY" "$AGENT" --setup
     ;;
   update)
     exec sh "$APP_DIR/install.sh" update
