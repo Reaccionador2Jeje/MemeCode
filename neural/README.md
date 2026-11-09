@@ -147,3 +147,19 @@ Formato admitido:
 Se admiten como máximo ocho operaciones por plan. Las acciones son `create_file` y `replace_file`; no se admite shell, red, borrado ni comandos indicados por el modelo. Al reemplazar un archivo, se guarda una copia en `.memecode/backups/`. Los planes no se aplican sin `--yes`.
 
 **Limitación:** el Transformer de inicio es muy pequeño y puede generar JSON inválido o código incorrecto. Sin checkpoint, `--draft` no puede generar planes. Esta versión proporciona el flujo de planificación, validación y aplicación, no una autonomía comparable a un agente comercial. Ejecutar pruebas sigue siendo una acción separada y requiere confirmación.
+
+
+## Uso sin PyTorch
+
+PyTorch es opcional. En Termux o en equipos modestos puedes comprobar el estado
+y ejecutar las herramientas locales (archivos, validación de planes y pruebas)
+sin instalarlo:
+
+```bash
+python -m neural.status
+python -m unittest tests.test_neural_light
+```
+
+El entrenamiento y la generación del modelo sí requieren PyTorch. Si no está
+instalado, `python -m neural.generate` muestra un mensaje claro en lugar de
+fallar durante la importación del módulo.
