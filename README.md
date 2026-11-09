@@ -111,7 +111,7 @@ MEMECODE_BASE_URL="https://api.openai.com/v1"
 
 The private file is stored outside your project: `%APPDATA%\\MemeCode\\.env` on Windows, or `$XDG_CONFIG_HOME/memecode/.env` (default: `~/.config/memecode/.env`) on Termux, Linux, and macOS. On Unix-like systems its permissions are restricted to the current user. Environment variables with the same names override the file.
 
-The root `.env.example` is only a template. Never put a real key in a repository, share it, or commit `.env`. API use may cost money depending on the provider; check its pricing and model availability.
+During installation, the installer asks which model to use and saves it in the private configuration. Press Enter to keep the current model (default: `gpt-4o-mini`). You can change it later with `memecode setup`. The root `.env.example` is only a template. Never put a real key in a repository, share it, or commit `.env`. API use may cost money depending on the provider; check its pricing and model availability.
 
 ## Architecture
 
