@@ -75,9 +75,10 @@ class AgentToolTests(unittest.TestCase):
         self.assertEqual(records[0]["task"], "make a demo")
         self.assertEqual(records[0]["result"], "Created demo.")
 
-    def test_task_history_rejects_parent_traversal(self):
-        with self.assertRaises(Exception):
-            save_task_history(self.root, "../outside", "no")
+    def test_task_text_cannot_change_history_destination(self):
+        save_task_history(self.root, "../outside", "recorded as plain text")
+        self.assertTrue((self.root / ".memecode" / "history.jsonl").is_file())
+        self.assertFalse((self.root.parent / ".memecode" / "history.jsonl").exists())
 
     def test_step_limit(self):
         def fake(messages,**kwargs):
