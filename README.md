@@ -13,8 +13,8 @@ MemeCode is designed to help inspect a project, propose edits, run checks, and r
 - [x] Python host bridge for scoped file and command operations
 - [x] Workspace path validation
 - [x] Explicit confirmation before running shell commands
-- [ ] LLM provider integration
-- [ ] Agent planning and tool-call loop
+- [x] OpenAI-compatible chat-completions provider adapter
+- [x] Agent planning and tool-call loop
 - [ ] Automated review and repair cycle
 - [ ] Git/GitHub integration
 - [ ] Android/Termux installation guide
@@ -25,7 +25,7 @@ MemeCode is designed to help inspect a project, propose edits, run checks, and r
 - `prompts/system.mgo`: Memingo-side agent principles and safety policy.
 - `runtime/host_bridge.py`: minimal OS bridge. It confines file operations to the selected workspace and requires confirmation before executing commands.
 
-The bridge is intentionally small: Memingo remains the project's primary language. The current version is a foundation, not yet a fully autonomous AI agent.
+The bridge is intentionally small: Memingo remains the project's primary language. The current version includes a basic model-driven tool loop. It still needs broader provider compatibility, stronger sandboxing, and more tests before production use.
 
 ## Requirements
 
@@ -46,6 +46,18 @@ Run the Memingo entry point:
 ```bash
 memingo run src/main.mgo
 ```
+
+Configure an OpenAI-compatible provider (keep the API key private):
+
+```bash
+export MEMECODE_API_KEY='your-api-key'
+export MEMECODE_MODEL='gpt-4o-mini'
+# Optional: use another compatible provider
+# export MEMECODE_BASE_URL='https://provider.example/v1'
+python3 runtime/agent.py 'Inspect this project and explain its structure' --workspace .
+```
+
+The agent can list and read project files, propose edits with a diff and approval, and run approved commands. It requires a compatible model API key; API usage may have costs depending on the provider.
 
 Inspect the workspace through the bridge:
 
