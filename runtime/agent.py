@@ -109,7 +109,7 @@ def git_readonly(root: Path, action: str) -> str:
     """Run one fixed, read-only Git inspection command in the workspace."""
     commands = {
         "status": ["git", "status", "--short", "--branch"],
-        "diff": ["git", "--no-pager", "diff", "--no-ext-diff", "--no-color", "--"],
+        "diff": ["git", "--no-pager", "diff", "HEAD", "--no-ext-diff", "--no-color", "--"],
         "log": ["git", "--no-pager", "log", "-5", "--oneline", "--decorate=no"],
     }
     if action not in commands:
