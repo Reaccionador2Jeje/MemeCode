@@ -3,10 +3,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import torch
-
-from neural.model import MemeCodeGPT, ModelConfig
-from neural.tokenizer import BOS, EOS, encode, decode
 
 
 def main() -> int:
@@ -19,15 +15,40 @@ def main() -> int:
     args = parser.parse_args()
     if args.tokens < 1 or args.temperature <= 0 or args.top_k < 0:
         parser.error("tokens debe ser positivo, temperature > 0 y top-k >= 0")
+
     path = Path(args.model)
     if not path.is_file():
         raise SystemExit(f"No existe el checkpoint: {path}. Entrena primero con python -m neural.train")
+
+    try:
+        import torch
+    except ImportError as exc:
+        raise SystemExit(
+            "No se puede generar texto: PyTorch no está instalado. "
+            "Las herramientas ligeras de Neural siguen disponibles sin PyTorch."
+        ) from exc
+
+    from neural.model import MemeCodeGPT, ModelConfig
+    from neural.tokenizer import BOS, EOS, encode, decode
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(path, map_location=device, weights_only=True)
     model = MemeCodeGPT(ModelConfig(**checkpoint["config"])).to(device)
     model.load_state_dict(checkpoint["state_dict"])
-    start = torch.tensor([[BOS, *encode(f"Usuario: {args.prompt}\nMemeCode:")]], dtype=torch.long, device=device)
-    result = model.generate(\n        start, max_new_tokens=min(args.tokens, 512), temperature=args.temperature,\n        top_k=args.top_k or None, eos_token_id=EOS,\n    )[0].tolist()
+    model.eval()
+    start = torch.tensor(
+        [[BOS, *encode(f"Usuario: {args.prompt}\\nMemeCode:")]],
+        dtype=torch.long,
+        device=device,
+    )
+    with torch.no_grad():
+        result = model.generate(
+            start,
+            max_new_tokens=min(args.tokens, 512),
+            temperature=args.temperature,
+            top_k=args.top_k or None,
+            eos_token_id=EOS,
+        )[0].tolist()
     generated = result[len(start[0]):]
     if EOS in generated:
         generated = generated[:generated.index(EOS)]
