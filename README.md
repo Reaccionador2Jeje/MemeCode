@@ -202,3 +202,9 @@ Apache License 2.0. See [LICENSE](LICENSE).
 ## MemeCode 2.0.1 — Memingo plan preview
 
 The `.mgo` plan validator at `src/memecode_planner.mgo` accepts a JSON plan through `MEMECODE_PLAN_JSON`, validates paths and operation limits, and prints a preview. This stage is read-only: it does not create or replace files. See [docs/MEMINGO_PLANNER.md](docs/MEMINGO_PLANNER.md).
+
+## Walletie compatibility
+
+MemeCode's local coding-agent features remain independent of Walletie. Do not place wallet service credentials in the agent, local project files, or client configuration.
+
+Walletie V1 currently accepts AtDev Cloud HS256 tokens only; other identity systems need the documented SSO bridge first. See the [Walletie integration matrix](https://github.com/Reaccionador2Jeje/Walletie/blob/main/docs/INTEGRATION_MATRIX.md).
