@@ -74,7 +74,7 @@ case "${1:-}" in
     echo "MemeCode: instalación encontrada"
     "$PY" --version
     "$APP_DIR/.venv/bin/memingo" --help >/dev/null 2>&1 && echo "Memingo: OK" || echo "Memingo: revisar"
-    "$PY" -m py_compile "$AGENT" "$APP_DIR/runtime/host_bridge.py" "$APP_DIR/neural/agent.py" "$APP_DIR/neural/planner.py" && echo "Python + Neural: OK"
+    "$PY" -m py_compile "$AGENT" "$APP_DIR/runtime/host_bridge.py" "$APP_DIR/runtime/tui.py" "$APP_DIR/neural/agent.py" "$APP_DIR/neural/planner.py" && echo "Python + TUI + Neural: OK"
     if [ -n "${MEMECODE_API_KEY:-}" ]; then echo "API: clave presente en esta sesión"; else echo "API: falta MEMECODE_API_KEY (no compartas tu clave)"; fi
     ;;
   setup)
@@ -122,5 +122,20 @@ chmod +x "$BIN_DIR/memecode-neural"
 curl -fsSL "https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh" -o "$APP_DIR/install.sh"
 say "¡Instalación completada!"
 say "Ejecuta: memecode"
-case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "Añade $BIN_DIR a PATH para ejecutar memecode desde cualquier carpeta." ;; esac
+case ":$PATH:" in
+  *":$BIN_DIR:"*) ;;
+  *)
+    if [ "$BIN_DIR" = "$HOME/.local/bin" ]; then
+      for profile in "$HOME/.profile" "$HOME/.bashrc"; do
+        touch "$profile"
+        grep -Fq 'export PATH="$HOME/.local/bin:$PATH"' "$profile" || printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$profile"
+      done
+      PATH="$BIN_DIR:$PATH"
+      export PATH
+      say "Se añadió $BIN_DIR al PATH de las próximas sesiones."
+    else
+      say "Añade $BIN_DIR a PATH para ejecutar memecode desde cualquier carpeta."
+    fi
+    ;;
+esac
 say "Comprueba la instalación con: memecode doctor"
