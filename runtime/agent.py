@@ -13,7 +13,7 @@ import sys
 import urllib.error
 import urllib.request
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from pathlib import Path
 from typing import Any
 
@@ -403,6 +403,222 @@ def _response_text(content: Any) -> str:
                 parts.append(item["text"])
         return "\n".join(part for part in parts if part).strip()
     return ""
+
+
+def _provider_error_detail(raw: str) -> str:
+    try:
+        payload = json.loads(raw)
+        error = payload.get("error", payload) if isinstance(payload, dict) else payload
+        if isinstance(error, dict):
+            return str(error.get("message") or error.get("detail") or error.get("status") or raw)[:1200]
+    except json.JSONDecodeError:
+        pass
+    return raw[:1200] or "sin detalle"
+
+
+def _post_json(url: str, body: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url, data=json.dumps(body).encode("utf-8"),
+        headers=headers, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=90) as response:
+            raw = response.read(2_000_000).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = _provider_error_detail(exc.read(4000).decode("utf-8", errors="replace"))
+        raise AgentError(f"El proveedor rechazó la solicitud (HTTP {exc.code}): {detail}") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise AgentError(f"No se pudo conectar con el proveedor. Revisa internet y la URL API. Detalle: {exc}") from exc
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise AgentError("El proveedor respondió, pero no devolvió JSON válido.") from exc
+    if not isinstance(payload, dict):
+        raise AgentError("El proveedor devolvió un formato inesperado.")
+    if isinstance(payload.get("error"), dict):
+        error = payload["error"]
+        raise AgentError(f"Error del proveedor: {error.get('message') or error.get('status') or 'sin detalle'}")
+    return payload
+
+
+def _anthropic_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
+                       base_url: str, tools_enabled: bool) -> dict[str,Any]:
+    base = base_url.rstrip("/")
+    endpoint = base if base.endswith("/messages") else (
+        base + "/messages" if base.endswith("/v1") else base + "/v1/messages"
+    )
+    system = "\n\n".join(str(item.get("content") or "") for item in messages if item.get("role") == "system")
+    tool_names: dict[str, str] = {}
+    for item in messages:
+        if item.get("role") == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                tool_names[str(call.get("id") or "")] = str(fn.get("name") or "unknown_tool")
+
+    contents: list[dict[str, Any]] = []
+    for item in messages:
+        role = item.get("role")
+        if role == "system":
+            continue
+        if role == "tool":
+            contents.append({"role": "user", "content": [{
+                "type": "tool_result",
+                "tool_use_id": str(item.get("tool_call_id") or ""),
+                "content": str(item.get("content") or ""),
+            }]})
+            continue
+        blocks: list[dict[str, Any]] = []
+        text_value = _response_text(item.get("content"))
+        if text_value:
+            blocks.append({"type": "text", "text": text_value})
+        if role == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                raw_args = fn.get("arguments") or {}
+                try:
+                    args = raw_args if isinstance(raw_args, dict) else json.loads(raw_args)
+                except (TypeError, json.JSONDecodeError):
+                    args = {}
+                blocks.append({
+                    "type": "tool_use",
+                    "id": str(call.get("id") or "memecode_tool"),
+                    "name": str(fn.get("name") or "unknown_tool"),
+                    "input": args if isinstance(args, dict) else {},
+                })
+        if blocks:
+            contents.append({"role": "assistant" if role == "assistant" else "user", "content": blocks})
+
+    body: dict[str, Any] = {
+        "model": model,
+        "max_tokens": 2048,
+        "messages": contents,
+    }
+    if system:
+        body["system"] = system
+    if tools_enabled:
+        body["tools"] = [{
+            "name": item["function"]["name"],
+            "description": item["function"].get("description", ""),
+            "input_schema": item["function"]["parameters"],
+        } for item in TOOLS]
+    payload = _post_json(endpoint, body, {
+        "x-api-key": api_key.strip(),
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "accept": "application/json",
+        "user-agent": "MemeCode/0.4",
+    })
+    blocks = payload.get("content") or []
+    text_parts = [block.get("text", "") for block in blocks
+                  if isinstance(block, dict) and block.get("type") == "text"]
+    calls = []
+    for index, block in enumerate(blocks):
+        if isinstance(block, dict) and block.get("type") == "tool_use":
+            calls.append({
+                "id": block.get("id") or f"anthropic_call_{index}",
+                "type": "function",
+                "function": {
+                    "name": block.get("name", ""),
+                    "arguments": json.dumps(block.get("input") or {}),
+                },
+            })
+    return {
+        "role": "assistant",
+        "content": "\n".join(part for part in text_parts if part).strip(),
+        "tool_calls": calls,
+    }
+
+
+def _gemini_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
+                    base_url: str, tools_enabled: bool) -> dict[str,Any]:
+    base = base_url.rstrip("/")
+    if base.endswith(":generateContent"):
+        endpoint = base
+    else:
+        if not ("/v1" in base):
+            base += "/v1beta"
+        endpoint = base + "/models/" + quote(model, safe="") + ":generateContent"
+    system_parts = [
+        {"text": _response_text(item.get("content"))}
+        for item in messages if item.get("role") == "system" and _response_text(item.get("content"))
+    ]
+    tool_names: dict[str, str] = {}
+    for item in messages:
+        if item.get("role") == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                tool_names[str(call.get("id") or "")] = str(fn.get("name") or "unknown_tool")
+
+    contents: list[dict[str, Any]] = []
+    for item in messages:
+        role = item.get("role")
+        if role == "system":
+            continue
+        parts: list[dict[str, Any]] = []
+        text_value = _response_text(item.get("content"))
+        if text_value:
+            parts.append({"text": text_value})
+        if role == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                raw_args = fn.get("arguments") or {}
+                try:
+                    args = raw_args if isinstance(raw_args, dict) else json.loads(raw_args)
+                except (TypeError, json.JSONDecodeError):
+                    args = {}
+                parts.append({"functionCall": {
+                    "name": str(fn.get("name") or "unknown_tool"),
+                    "args": args if isinstance(args, dict) else {},
+                }})
+            gemini_role = "model"
+        elif role == "tool":
+            name = tool_names.get(str(item.get("tool_call_id") or ""), "unknown_tool")
+            parts.append({"functionResponse": {
+                "name": name,
+                "response": {"result": str(item.get("content") or "")},
+            }})
+            gemini_role = "user"
+        else:
+            gemini_role = "user"
+        if parts:
+            contents.append({"role": gemini_role, "parts": parts})
+
+    body: dict[str, Any] = {"contents": contents}
+    if system_parts:
+        body["systemInstruction"] = {"parts": system_parts}
+    if tools_enabled:
+        body["tools"] = [{
+            "functionDeclarations": [{
+                "name": item["function"]["name"],
+                "description": item["function"].get("description", ""),
+                "parameters": item["function"]["parameters"],
+            } for item in TOOLS]
+        }]
+    payload = _post_json(endpoint + ("&" if "?" in endpoint else "?") + urlencode({"key": api_key.strip()}),
+                         body, {"content-type": "application/json", "accept": "application/json",
+                                "user-agent": "MemeCode/0.4"})
+    candidates = payload.get("candidates") or []
+    if not candidates or not isinstance(candidates[0], dict):
+        raise AgentError("Gemini respondió sin candidates. Comprueba el modelo y el acceso habilitado para tu API key.")
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    text_parts = []
+    calls = []
+    for index, part in enumerate(parts):
+        if not isinstance(part, dict):
+            continue
+        if isinstance(part.get("text"), str):
+            text_parts.append(part["text"])
+        function_call = part.get("functionCall")
+        if isinstance(function_call, dict):
+            calls.append({
+                "id": f"gemini_call_{index}",
+                "type": "function",
+                "function": {
+                    "name": function_call.get("name", ""),
+                    "arguments": json.dumps(function_call.get("args") or {}),
+                },
+            })
+    return {"role": "assistant", "content": "\n".join(text_parts).strip(), "tool_calls": calls}
 
 
 def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
