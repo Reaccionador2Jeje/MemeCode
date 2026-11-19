@@ -589,7 +589,8 @@ def _gemini_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
     if tools_enabled:
         def gemini_schema(schema: dict[str, Any]) -> dict[str, Any]:
             return {
-                key: (gemini_schema(value) if isinstance(value, dict) else
+                key: (str(value).upper() if key == "type" and isinstance(value, str) else
+                      gemini_schema(value) if isinstance(value, dict) else
                       [gemini_schema(entry) if isinstance(entry, dict) else entry for entry in value]
                       if isinstance(value, list) else value)
                 for key, value in schema.items()
