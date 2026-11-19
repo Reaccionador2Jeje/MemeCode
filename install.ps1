@@ -109,7 +109,7 @@ if /i "%~1"=="uninstall" (
 )
 if /i "%~1"=="help" (
   echo Uso: memecode [setup^|doctor^|neural^|update^|uninstall^|tarea...]
-  echo Sin argumentos abre el chat en la carpeta actual.
+  echo Sin argumentos abre la TUI en la carpeta actual.
   exit /b 0
 )
 if "%~1"=="" (
