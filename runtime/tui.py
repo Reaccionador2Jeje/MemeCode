@@ -31,7 +31,7 @@ class ApprovalScreen(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         with Container(id="approval-box"):
             yield Label("MemeCode necesita tu autorización")
-            yield Static(self.prompt)
+            yield Static(self.prompt, markup=False)
             with Horizontal(id="approval-actions"):
                 yield Button("Rechazar", id="deny")
                 yield Button("Aprobar", id="approve", variant="success")
@@ -95,9 +95,9 @@ class MemeCodeApp(App[None]):
     Screen { background: $background; }
     #messages { height: 1fr; padding: 1 2; }
     .message { width: 100%; height: auto; margin-bottom: 1; padding: 1 2; border: round $primary-background; }
-    .user-message { border-left: thick $success; }
-    .agent-message { border-left: thick $accent; }
-    .system-message { border-left: thick $warning; color: $text-muted; }
+    .user-message { border-left: solid $success; }
+    .agent-message { border-left: solid $accent; }
+    .system-message { border-left: solid $warning; color: $text-muted; }
     #prompt { dock: bottom; margin: 0 1 1 1; }
     """
 
@@ -127,7 +127,7 @@ class MemeCodeApp(App[None]):
         panel.scroll_end(animate=False)
 
     @on(Input.Submitted, "#prompt")
-    def submit_prompt(self, event: Input.Submitted) -> None:
+    async def submit_prompt(self, event: Input.Submitted) -> None:
         task = event.value.strip()
         event.input.value = ""
         if not task:
@@ -139,7 +139,7 @@ class MemeCodeApp(App[None]):
             self.write_message("Sistema", "Escribe una tarea para el agente. /setup configura el proveedor, /clear limpia el chat y /exit sale.", "system-message")
             return
         if task.lower() == "/clear":
-            self.query_one("#messages", VerticalScroll).remove_children()
+            await self.query_one("#messages", VerticalScroll).remove_children()
             return
         if task.lower() == "/setup":
             self.push_screen(ProviderScreen(), self.save_provider)
@@ -208,8 +208,8 @@ class MemeCodeApp(App[None]):
         self.query_one("#prompt", Input).disabled = False
         self.query_one("#prompt", Input).focus()
 
-    def action_clear_chat(self) -> None:
-        self.query_one("#messages", VerticalScroll).remove_children()
+    async def action_clear_chat(self) -> None:
+        await self.query_one("#messages", VerticalScroll).remove_children()
 
 
 def run_tui(workspace: str = ".") -> int:
