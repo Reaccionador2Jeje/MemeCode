@@ -87,7 +87,7 @@ if not exist "%PY%" (
 if /i "%~1"=="doctor" (
   "%PY%" --version
   "%APP_DIR%\.venv\Scripts\memingo.exe" --help >nul 2>&1 && echo Memingo: OK || echo Memingo: revisar
-  "%PY%" -m py_compile "%AGENT%" "%APP_DIR%\runtime\host_bridge.py" "%APP_DIR%\neural\agent.py" "%APP_DIR%\neural\planner.py" && echo Python + Neural: OK
+  "%PY%" -m py_compile "%AGENT%" "%APP_DIR%\runtime\host_bridge.py" "%APP_DIR%\runtime\tui.py" "%APP_DIR%\neural\agent.py" "%APP_DIR%\neural\planner.py" && echo Python + TUI + Neural: OK
   if defined MEMECODE_API_KEY (echo API: clave presente en esta sesion) else (echo API: falta MEMECODE_API_KEY)
   exit /b
 )
