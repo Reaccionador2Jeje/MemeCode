@@ -1,0 +1,2 @@
+# Terminal interface dependency. The Python agent otherwise uses the standard library.
+textual>=0.80,<2
