@@ -66,7 +66,7 @@ try {
     Say "Instalando o actualizando Memingo..."
     & $venvPython -m pip install --upgrade (Join-Path $tempDir "Memingo") "textual>=0.80,<2"
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo instalar Memingo." }
-    & $venvPython -m py_compile (Join-Path $AppDir "runtime\agent.py") (Join-Path $AppDir "runtime\host_bridge.py") (Join-Path $AppDir "neural\agent.py") (Join-Path $AppDir "neural\planner.py")
+    & $venvPython -m py_compile (Join-Path $AppDir "runtime\agent.py") (Join-Path $AppDir "runtime\host_bridge.py") (Join-Path $AppDir "runtime\tui.py") (Join-Path $AppDir "neural\agent.py") (Join-Path $AppDir "neural\planner.py")
     if ($LASTEXITCODE -ne 0) { Fail "Falló la comprobación de Python." }
     $memingoExe = Join-Path $AppDir ".venv\Scripts\memingo.exe"
     if (-not (Test-Path $memingoExe)) { Fail "Memingo no quedó disponible en el entorno virtual." }
