@@ -57,10 +57,10 @@ class ProviderScreen(ModalScreen[dict[str, str] | None]):
     def compose(self) -> ComposeResult:
         with Container(id="provider-box"):
             yield Label("Configuración del proveedor (opcional)")
-            yield Static("Puedes dejar la API key vacía y configurarla más tarde.")
+            yield Static("El protocolo se detecta automáticamente según la URL: OpenAI-compatible, Anthropic o Gemini. Usa /test después de guardar.")
             yield Label("Modelo")
             yield Input(value=self.values.get("MEMECODE_MODEL", "gpt-4o-mini"), id="model")
-            yield Label("API base URL")
+            yield Label("API base URL (detección automática)")
             yield Input(value=self.values.get("MEMECODE_BASE_URL", agent.DEFAULT_BASE_URL), id="base-url")
             yield Label("API key (entrada oculta)")
             yield Input(value=self.values.get("MEMECODE_API_KEY", ""), password=True, id="api-key")
@@ -111,7 +111,7 @@ class MemeCodeApp(App[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         yield VerticalScroll(id="messages")
-        yield Input(placeholder="Escribe una tarea…  (/setup, /help, /exit)", id="prompt")
+        yield Input(placeholder="Escribe una tarea…  (/setup, /test, /help, /exit)", id="prompt")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -138,13 +138,26 @@ class MemeCodeApp(App[None]):
             self.exit()
             return
         if task.lower() == "/help":
-            self.write_message("Sistema", "Escribe una tarea para el agente. /setup configura el proveedor, /clear limpia el chat y /exit sale.", "system-message")
+            self.write_message("Sistema", "Escribe una tarea para el agente. /setup configura el proveedor, /test comprueba la conexión, /clear limpia el chat y /exit sale.", "system-message")
             return
         if task.lower() == "/clear":
             await self.query_one("#messages", VerticalScroll).remove_children()
             return
         if task.lower() == "/setup":
             self.push_screen(ProviderScreen(), self.save_provider)
+            return
+        if task.lower() == "/test":
+            if self.busy:
+                self.notify("Espera a que termine la tarea actual.", severity="warning")
+                return
+            settings = agent.provider_settings(interactive=False)
+            if not settings.get("MEMECODE_API_KEY"):
+                self.write_message("Sistema", "Primero configura el proveedor con /setup.", "system-message")
+                return
+            self.write_message("Sistema", "Probando conexión, autenticación y respuesta del modelo…", "system-message")
+            self.busy = True
+            self.query_one("#prompt", Input).disabled = True
+            self.test_provider(settings)
             return
         if self.busy:
             self.notify("Espera a que termine la tarea actual.", severity="warning")
@@ -199,6 +212,29 @@ class MemeCodeApp(App[None]):
             self.call_from_thread(self.write_message, "MemeCode", answer or "(Sin respuesta)", "agent-message")
         except Exception as exc:
             self.call_from_thread(self.write_message, "Error", str(exc), "system-message")
+        finally:
+            self.call_from_thread(self._task_finished)
+
+    @work(thread=True, exclusive=True)
+    def test_provider(self, settings: dict[str, str]) -> None:
+        try:
+            message = agent.provider_request(
+                [{"role": "user", "content": "Responde exactamente: MemeCode conectado."}],
+                api_key=settings["MEMECODE_API_KEY"],
+                model=settings["MEMECODE_MODEL"],
+                base_url=settings["MEMECODE_BASE_URL"],
+                tools_enabled=False,
+            )
+            answer = agent._response_text(message.get("content"))
+            if not answer:
+                raise agent.AgentError("El proveedor respondió sin texto.")
+            self.call_from_thread(
+                self.write_message, "Prueba de conexión",
+                f"Conexión correcta. Modelo: {settings['MEMECODE_MODEL']}\nRespuesta: {answer}",
+                "system-message",
+            )
+        except Exception as exc:
+            self.call_from_thread(self.write_message, "Prueba de conexión fallida", str(exc), "system-message")
         finally:
             self.call_from_thread(self._task_finished)
 

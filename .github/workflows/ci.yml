@@ -36,7 +36,7 @@ jobs:
       - name: Import terminal UI
         run: python -c "from runtime.tui import MemeCodeApp; print('MemeCode TUI import OK')"
       - name: Compile Python modules
-        run: python -m py_compile runtime/agent.py runtime/host_bridge.py runtime/tui.py neural/tokenizer.py neural/model.py neural/train.py neural/generate.py neural/agent.py neural/planner.py neural/agent.py neural/planner.py
+        run: python -m py_compile runtime/agent.py runtime/host_bridge.py runtime/tui.py tests/test_provider.py neural/tokenizer.py neural/model.py neural/train.py neural/generate.py neural/agent.py neural/planner.py neural/agent.py neural/planner.py
       - name: Validate installer shell syntax
         run: sh -n install.sh
       - name: Run safety tests

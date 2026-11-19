@@ -378,45 +378,447 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any], approval_fn=
     except (KeyError, TypeError, ValueError, WorkspaceError, AgentError, OSError, UnicodeError) as exc:
         return f"Tool error: {exc}"
 
-def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str, base_url: str) -> dict[str,Any]:
-    body = json.dumps({"model":model,"messages":messages,"tools":TOOLS,"tool_choice":"auto","temperature":0.2}).encode("utf-8")
-    request = urllib.request.Request(
-        base_url.rstrip("/") + "/chat/completions", data=body,
-        headers={"Authorization":"Bearer "+api_key,"Content-Type":"application/json","User-Agent":"MemeCode/0.1"},
-        method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read(2000).decode("utf-8",errors="replace")
-        raise AgentError(f"Provider returned HTTP {exc.code}: {detail}") from exc
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise AgentError(f"Could not contact model provider: {exc}") from exc
-    try:
-        return payload["choices"][0]["message"]
-    except (KeyError,IndexError,TypeError) as exc:
-        raise AgentError("Provider response did not contain a chat completion.") from exc
+def _chat_completions_url(base_url: str) -> str:
+    """Accept either an API base URL or the complete chat-completions endpoint."""
+    value = base_url.strip().rstrip("/")
+    if not value.startswith(("https://", "http://")):
+        raise AgentError("La URL del proveedor debe comenzar con https:// o http://.")
+    if value.endswith("/chat/completions"):
+        return value
+    if value.endswith("/v1"):
+        return value + "/chat/completions"
+    return value + "/chat/completions"
 
-def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS, request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT, approval_fn=None, output_fn=None) -> str:
+
+def _response_text(content: Any) -> str:
+    """Normalize common text response shapes into plain text."""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "\n".join(part for part in parts if part).strip()
+    return ""
+
+
+def _provider_error_detail(raw: str) -> str:
+    try:
+        payload = json.loads(raw)
+        error = payload.get("error", payload) if isinstance(payload, dict) else payload
+        if isinstance(error, dict):
+            return str(error.get("message") or error.get("detail") or error.get("status") or raw)[:1200]
+    except json.JSONDecodeError:
+        pass
+    return raw[:1200] or "sin detalle"
+
+
+def _post_json(url: str, body: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url, data=json.dumps(body).encode("utf-8"),
+        headers=headers, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=90) as response:
+            raw = response.read(2_000_000).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = _provider_error_detail(exc.read(4000).decode("utf-8", errors="replace"))
+        raise AgentError(f"El proveedor rechazó la solicitud (HTTP {exc.code}): {detail}") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise AgentError(f"No se pudo conectar con el proveedor. Revisa internet y la URL API. Detalle: {exc}") from exc
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise AgentError("El proveedor respondió, pero no devolvió JSON válido.") from exc
+    if not isinstance(payload, dict):
+        raise AgentError("El proveedor devolvió un formato inesperado.")
+    if isinstance(payload.get("error"), dict):
+        error = payload["error"]
+        raise AgentError(f"Error del proveedor: {error.get('message') or error.get('status') or 'sin detalle'}")
+    return payload
+
+
+def _anthropic_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
+                       base_url: str, tools_enabled: bool) -> dict[str,Any]:
+    base = base_url.rstrip("/")
+    endpoint = base if base.endswith("/messages") else (
+        base + "/messages" if base.endswith("/v1") else base + "/v1/messages"
+    )
+    system = "\n\n".join(str(item.get("content") or "") for item in messages if item.get("role") == "system")
+    tool_names: dict[str, str] = {}
+    for item in messages:
+        if item.get("role") == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                tool_names[str(call.get("id") or "")] = str(fn.get("name") or "unknown_tool")
+
+    contents: list[dict[str, Any]] = []
+    for item in messages:
+        role = item.get("role")
+        if role == "system":
+            continue
+        if role == "tool":
+            contents.append({"role": "user", "content": [{
+                "type": "tool_result",
+                "tool_use_id": str(item.get("tool_call_id") or ""),
+                "content": str(item.get("content") or ""),
+            }]})
+            continue
+        blocks: list[dict[str, Any]] = []
+        text_value = _response_text(item.get("content"))
+        if text_value:
+            blocks.append({"type": "text", "text": text_value})
+        if role == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                raw_args = fn.get("arguments") or {}
+                try:
+                    args = raw_args if isinstance(raw_args, dict) else json.loads(raw_args)
+                except (TypeError, json.JSONDecodeError):
+                    args = {}
+                blocks.append({
+                    "type": "tool_use",
+                    "id": str(call.get("id") or "memecode_tool"),
+                    "name": str(fn.get("name") or "unknown_tool"),
+                    "input": args if isinstance(args, dict) else {},
+                })
+        if blocks:
+            contents.append({"role": "assistant" if role == "assistant" else "user", "content": blocks})
+
+    body: dict[str, Any] = {
+        "model": model,
+        "max_tokens": 2048,
+        "messages": contents,
+    }
+    if system:
+        body["system"] = system
+    if tools_enabled:
+        body["tools"] = [{
+            "name": item["function"]["name"],
+            "description": item["function"].get("description", ""),
+            "input_schema": item["function"]["parameters"],
+        } for item in TOOLS]
+    payload = _post_json(endpoint, body, {
+        "x-api-key": api_key.strip(),
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "accept": "application/json",
+        "user-agent": "MemeCode/0.4",
+    })
+    blocks = payload.get("content") or []
+    text_parts = [block.get("text", "") for block in blocks
+                  if isinstance(block, dict) and block.get("type") == "text"]
+    calls = []
+    for index, block in enumerate(blocks):
+        if isinstance(block, dict) and block.get("type") == "tool_use":
+            calls.append({
+                "id": block.get("id") or f"anthropic_call_{index}",
+                "type": "function",
+                "function": {
+                    "name": block.get("name", ""),
+                    "arguments": json.dumps(block.get("input") or {}),
+                },
+            })
+    return {
+        "role": "assistant",
+        "content": "\n".join(part for part in text_parts if part).strip(),
+        "tool_calls": calls,
+    }
+
+
+def _gemini_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
+                    base_url: str, tools_enabled: bool) -> dict[str,Any]:
+    base = base_url.rstrip("/")
+    if base.endswith(":generateContent"):
+        endpoint = base
+    else:
+        if not ("/v1" in base):
+            base += "/v1beta"
+        endpoint = base + "/models/" + quote(model, safe="") + ":generateContent"
+    system_parts = [
+        {"text": _response_text(item.get("content"))}
+        for item in messages if item.get("role") == "system" and _response_text(item.get("content"))
+    ]
+    tool_names: dict[str, str] = {}
+    for item in messages:
+        if item.get("role") == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                tool_names[str(call.get("id") or "")] = str(fn.get("name") or "unknown_tool")
+
+    contents: list[dict[str, Any]] = []
+    for item in messages:
+        role = item.get("role")
+        if role == "system":
+            continue
+        parts: list[dict[str, Any]] = []
+        text_value = _response_text(item.get("content"))
+        if text_value:
+            parts.append({"text": text_value})
+        if role == "assistant":
+            for call in item.get("tool_calls") or []:
+                fn = call.get("function") or {}
+                raw_args = fn.get("arguments") or {}
+                try:
+                    args = raw_args if isinstance(raw_args, dict) else json.loads(raw_args)
+                except (TypeError, json.JSONDecodeError):
+                    args = {}
+                parts.append({"functionCall": {
+                    "name": str(fn.get("name") or "unknown_tool"),
+                    "args": args if isinstance(args, dict) else {},
+                }})
+            gemini_role = "model"
+        elif role == "tool":
+            name = tool_names.get(str(item.get("tool_call_id") or ""), "unknown_tool")
+            parts.append({"functionResponse": {
+                "name": name,
+                "response": {"result": str(item.get("content") or "")},
+            }})
+            gemini_role = "user"
+        else:
+            gemini_role = "user"
+        if parts:
+            contents.append({"role": gemini_role, "parts": parts})
+
+    body: dict[str, Any] = {"contents": contents}
+    if system_parts:
+        body["systemInstruction"] = {"parts": system_parts}
+    if tools_enabled:
+        def gemini_schema(schema: dict[str, Any]) -> dict[str, Any]:
+            return {
+                key: (str(value).upper() if key == "type" and isinstance(value, str) else
+                      gemini_schema(value) if isinstance(value, dict) else
+                      [gemini_schema(entry) if isinstance(entry, dict) else entry for entry in value]
+                      if isinstance(value, list) else value)
+                for key, value in schema.items()
+                if key != "additionalProperties"
+            }
+        body["tools"] = [{
+            "functionDeclarations": [{
+                "name": item["function"]["name"],
+                "description": item["function"].get("description", ""),
+                "parameters": gemini_schema(item["function"]["parameters"]),
+            } for item in TOOLS]
+        }]
+    payload = _post_json(endpoint, body, {
+        "content-type": "application/json",
+        "accept": "application/json",
+        "x-goog-api-key": api_key.strip(),
+        "user-agent": "MemeCode/0.4",
+    })
+    candidates = payload.get("candidates") or []
+    if not candidates or not isinstance(candidates[0], dict):
+        raise AgentError("Gemini respondió sin candidates. Comprueba el modelo y el acceso habilitado para tu API key.")
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    text_parts = []
+    calls = []
+    for index, part in enumerate(parts):
+        if not isinstance(part, dict):
+            continue
+        if isinstance(part.get("text"), str):
+            text_parts.append(part["text"])
+        function_call = part.get("functionCall")
+        if isinstance(function_call, dict):
+            calls.append({
+                "id": f"gemini_call_{index}",
+                "type": "function",
+                "function": {
+                    "name": function_call.get("name", ""),
+                    "arguments": json.dumps(function_call.get("args") or {}),
+                },
+            })
+    return {"role": "assistant", "content": "\n".join(text_parts).strip(), "tool_calls": calls}
+
+
+def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
+                     base_url: str, tools_enabled: bool = True) -> dict[str,Any]:
+    """Call an OpenAI-compatible endpoint with compatibility fallbacks.
+
+    Some providers/models reject temperature or function calling. Retry only
+    those request-shape incompatibilities; authentication, quota and model
+    errors are returned immediately with a readable provider message.
+    """
+    if not api_key.strip():
+        raise AgentError("Falta la API key. Configúrala en /setup.")
+    if not model.strip():
+        raise AgentError("Falta el identificador del modelo. Configúralo en /setup.")
+
+    lowered_url = base_url.lower()
+    if "api.anthropic.com" in lowered_url or lowered_url.rstrip("/").endswith("/messages"):
+        try:
+            message = _anthropic_request(messages, api_key=api_key, model=model,
+                                         base_url=base_url, tools_enabled=tools_enabled)
+        except AgentError as exc:
+            if tools_enabled and "http 400" in str(exc).lower() and any(
+                word in str(exc).lower() for word in ("tool", "function")
+            ):
+                message = _anthropic_request(messages, api_key=api_key, model=model,
+                                             base_url=base_url, tools_enabled=False)
+                message["_memecode_tool_support"] = False
+            else:
+                raise
+        return message
+    if "generativelanguage.googleapis.com" in lowered_url or ":generatecontent" in lowered_url:
+        try:
+            message = _gemini_request(messages, api_key=api_key, model=model,
+                                      base_url=base_url, tools_enabled=tools_enabled)
+        except AgentError as exc:
+            if tools_enabled and "http 400" in str(exc).lower() and any(
+                word in str(exc).lower() for word in ("tool", "function")
+            ):
+                message = _gemini_request(messages, api_key=api_key, model=model,
+                                          base_url=base_url, tools_enabled=False)
+                message["_memecode_tool_support"] = False
+            else:
+                raise
+        return message
+
+    endpoint = _chat_completions_url(base_url)
+    if not api_key.strip():
+        raise AgentError("Falta la API key. Configúrala en /setup.")
+    if not model.strip():
+        raise AgentError("Falta el identificador del modelo. Configúralo en /setup.")
+
+    variants = []
+    if tools_enabled:
+        variants.append((True, True))
+        variants.append((True, False))
+    variants.append((False, False))
+    last_error = None
+
+    for include_tools, include_temperature in variants:
+        body_data: dict[str, Any] = {
+            "model": model.strip(),
+            "messages": messages,
+            "stream": False,
+        }
+        if include_tools:
+            body_data["tools"] = TOOLS
+            body_data["tool_choice"] = "auto"
+        if include_temperature:
+            body_data["temperature"] = 0.2
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body_data).encode("utf-8"),
+            headers={
+                "Authorization": "Bearer " + api_key.strip(),
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "MemeCode/0.4",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=90) as response:
+                raw = response.read(2_000_000).decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise AgentError("El proveedor respondió, pero no devolvió JSON válido. Comprueba que la URL sea el endpoint API correcto.") from exc
+        except urllib.error.HTTPError as exc:
+            detail = exc.read(4000).decode("utf-8", errors="replace")
+            try:
+                error_payload = json.loads(detail)
+                error_value = error_payload.get("error", error_payload)
+                if isinstance(error_value, dict):
+                    detail = str(error_value.get("message") or error_value.get("detail") or detail)
+            except (json.JSONDecodeError, AttributeError):
+                pass
+            last_error = (exc.code, detail[:1200])
+            compatibility_error = exc.code in {400, 422} and any(
+                word in detail.lower()
+                for word in ("temperature", "tool_choice", "tool call", "tool_calls",
+                             "tools", "function calling", "unsupported parameter",
+                             "not support", "unknown parameter", "unrecognized")
+            )
+            if compatibility_error:
+                continue
+            raise AgentError(f"El proveedor rechazó la solicitud (HTTP {exc.code}): {detail[:1200]}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise AgentError(f"No se pudo conectar con el proveedor. Revisa internet y la URL API. Detalle: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise AgentError("El proveedor devolvió un formato inesperado (se esperaba un objeto JSON).")
+        if isinstance(payload.get("error"), dict):
+            error = payload["error"]
+            raise AgentError(f"Error del proveedor: {error.get('message') or error.get('type') or 'respuesta de error sin detalle'}")
+        try:
+            choices = payload.get("choices")
+            message = choices[0].get("message") if isinstance(choices, list) and choices else None
+        except (AttributeError, IndexError, TypeError):
+            message = None
+        if not isinstance(message, dict):
+            finish = ""
+            try:
+                finish = str(payload.get("choices", [{}])[0].get("finish_reason") or "")
+            except (AttributeError, IndexError, TypeError):
+                pass
+            raise AgentError(
+                "El proveedor respondió, pero no incluyó choices[0].message. "
+                f"Revisa que uses una API compatible con OpenAI Chat Completions. Motivo: {finish or 'formato desconocido'}."
+            )
+        normalized = dict(message)
+        normalized["content"] = _response_text(message.get("content"))
+        if not include_tools:
+            normalized["_memecode_tool_support"] = False
+        elif not message.get("tool_calls") and message.get("content") is None:
+            normalized["content"] = ""
+        return normalized
+
+    code, detail = last_error or (400, "Parámetros incompatibles.")
+    raise AgentError(
+        f"El modelo rechazó los formatos de solicitud compatibles (HTTP {code}): {detail}. "
+        "Comprueba el ID exacto del modelo y si el proveedor admite Chat Completions."
+    )
+
+
+def run_agent(task: str, root: Path, *, api_key: str, model: str,
+              base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS,
+              request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT,
+              approval_fn=None, output_fn=None) -> str:
     if not task.strip():
         raise AgentError("Task cannot be empty.")
     messages = [{"role":"system","content":system_prompt},{"role":"user","content":task.strip()}]
     for _ in range(max_steps):
-        message = request_fn(messages,api_key=api_key,model=model,base_url=base_url)
-        messages.append(message)
+        message = request_fn(messages, api_key=api_key, model=model, base_url=base_url)
+        if not isinstance(message, dict):
+            raise AgentError("El adaptador del proveedor devolvió una respuesta inválida.")
         tool_calls = message.get("tool_calls") or []
+        safe_message = {key: value for key, value in message.items() if not key.startswith("_memecode_")}
+        messages.append(safe_message)
+        content = _response_text(message.get("content"))
         if not tool_calls:
-            return str(message.get("content") or "")
-        for call in tool_calls:
-            fn = call.get("function",{})
+            if not content:
+                raise AgentError(
+                    "El modelo respondió sin texto ni herramientas. Puede ser un ID de modelo incorrecto, "
+                    "un límite de tokens o un modelo que no admite este endpoint."
+                )
+            if message.get("_memecode_tool_support") is False:
+                content += (
+                    "\n\n[Modo compatibilidad: este modelo no admite llamadas a herramientas "
+                    "en este endpoint. MemeCode no ejecutó ni modificó archivos; esta respuesta es solo texto.]"
+                )
+            return content
+        for index, call in enumerate(tool_calls):
+            if not isinstance(call, dict):
+                raise AgentError("El proveedor devolvió una llamada a herramienta con formato inválido.")
+            fn = call.get("function") or {}
+            if not isinstance(fn, dict):
+                raise AgentError("El proveedor devolvió una función con formato inválido.")
+            raw_args = fn.get("arguments") or "{}"
             try:
-                args = json.loads(fn.get("arguments") or "{}")
-                if not isinstance(args,dict):
+                args = raw_args if isinstance(raw_args, dict) else json.loads(raw_args)
+                if not isinstance(args, dict):
                     raise ValueError("Tool arguments must be a JSON object.")
-                result = dispatch_tool(root,fn.get("name",""),args,approval_fn=approval_fn,output_fn=output_fn)
-            except (json.JSONDecodeError,ValueError) as exc:
+                result = dispatch_tool(root, fn.get("name", ""), args,
+                                       approval_fn=approval_fn, output_fn=output_fn)
+            except (json.JSONDecodeError, ValueError) as exc:
                 result = f"Invalid tool arguments: {exc}"
-            messages.append({"role":"tool","tool_call_id":call.get("id",""),"content":str(result)[:MAX_TOOL_RESULT]})
+            call_id = str(call.get("id") or f"memecode_call_{index}")
+            messages.append({"role":"tool","tool_call_id":call_id,"content":str(result)[:MAX_TOOL_RESULT]})
     raise AgentError(f"Agent reached the {max_steps}-step limit without a final answer.")
 
 def run_review_cycle(task: str, root: Path, *, api_key: str, model: str,
