@@ -96,6 +96,7 @@ proot-distro login ubuntu
 apt update
 apt install -y git python3 python3-venv python3-pip curl
 curl -fsSL https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh | sh
+source ~/.profile
 ```
 
 Después, desde el directorio de tu proyecto:
