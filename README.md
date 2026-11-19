@@ -192,7 +192,8 @@ See [docs/MIGRATION_MEMINGO.md](docs/MIGRATION_MEMINGO.md) for scope and migrati
 - `src/memecode_core.mgo`: new read-only MemeCode 2.0 core written in Memingo.
 - `src/main.mgo` and `src/agent_core.mgo`: previous Memingo entry point and policy.
 - `runtime/host_bridge.py`: workspace-scoped file and command bridge.
-- `runtime/agent.py`: multi-protocol model adapters, compatibility fallbacks, tool loop, approvals, Git/GitHub tools, review cycle, chat, and history.\n- `docs/PROVIDERS.md`: supported provider protocols, setup examples, and diagnostics.
+- `runtime/agent.py`: multi-protocol model adapters, compatibility fallbacks, tool loop, approvals, Git/GitHub tools, review cycle, chat, and history.
+- `docs/PROVIDERS.md`: supported provider protocols, setup examples, and diagnostics.
 - `install.sh`: Termux, Linux, and macOS installer.
 - `runtime/tui.py`: Textual terminal interface, including interactive approval dialogs.
 - `requirements.txt`: TUI dependency.
