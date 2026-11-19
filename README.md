@@ -94,15 +94,15 @@ memecode uninstall
 memecode "Inspect this project and explain its structure"
 ```
 
-## First-run API setup
+## Optional API setup
 
-On first launch, MemeCode automatically creates a private configuration folder, a `.env` file, and a `.env.example` template. Setup follows this order: choose the model, open the official API-key page, create and copy your key, then paste it into the hidden input. The optional OpenAI-compatible API base URL can also be configured.
-
-You can run the setup again at any time:
+MemeCode opens its terminal UI without requiring a model or API key. The provider configuration is optional during installation and first launch. In the TUI, use `/setup` to configure a provider, or run this command from a regular terminal:
 
 ```sh
 memecode setup
 ```
+
+The TUI also works before a provider is configured; you can browse its interface and set up the provider later.
 
 The configuration uses these exact variable names:
 
@@ -114,7 +114,7 @@ MEMECODE_BASE_URL="https://api.openai.com/v1"
 
 The private file is stored outside your project: `%APPDATA%\\MemeCode\\.env` on Windows, or `$XDG_CONFIG_HOME/memecode/.env` (default: `~/.config/memecode/.env`) on Termux, Linux, and macOS. On Unix-like systems its permissions are restricted to the current user. Environment variables with the same names override the file.
 
-During installation, both Termux/Linux/macOS and Windows installers first ask which model to use, then open (or display) the official API-key page, and finally ask you to paste the copied key using hidden input. Press Enter to keep the current model (default: `gpt-4o-mini`). You can repeat the same sequence later with `memecode setup`. The root `.env.example` is only a template. Never put a real key in a repository, share it, or commit `.env`. API use may cost money depending on the provider; check its pricing and model availability.
+Installers do not ask for a model or API key. The model and key are requested only when you explicitly open `/setup` in the TUI or run `memecode setup`. The root `.env.example` is only a template. Never put a real key in a repository, share it, or commit `.env`. API use may cost money depending on the provider; check its pricing and model availability.
 
 ## Experimental local model: MemeCode Neural
 
@@ -187,6 +187,8 @@ See [docs/MIGRATION_MEMINGO.md](docs/MIGRATION_MEMINGO.md) for scope and migrati
 - `runtime/host_bridge.py`: workspace-scoped file and command bridge.
 - `runtime/agent.py`: model adapter, tool loop, approvals, Git/GitHub tools, review cycle, chat, and history.
 - `install.sh`: Termux, Linux, and macOS installer.
+- `runtime/tui.py`: Textual terminal interface, including interactive approval dialogs.
+- `requirements.txt`: TUI dependency.
 - `install.ps1`: Windows PowerShell installer.
 - `docs/TERMUX.md`: Android installation guide.
 

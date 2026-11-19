@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/ins
 
 El instalador descarga MemeCode y Memingo, crea un entorno Python aislado y registra el comando `memecode` en `$PREFIX/bin`. No necesitas instalar Memingo por separado.
 
-Abre el agente desde la carpeta de tu proyecto:
+Abre la interfaz TUI desde la carpeta de tu proyecto:
 
 ```sh
 cd ~/MiProyecto
@@ -27,7 +27,7 @@ memecode "Revisa este proyecto y encuentra errores"
 
 ## Comandos
 
-- `memecode`: abre el chat en la carpeta actual.
+- `memecode`: abre la TUI en la carpeta actual.
 - `memecode doctor`: comprueba Python, Memingo y la configuración de API.
 - `memecode update`: actualiza MemeCode y reinstala su entorno.
 - `memecode uninstall`: desinstala MemeCode tras pedir confirmación.
@@ -53,9 +53,15 @@ memecode-neural --apply-plan plan.json --yes
 
 Neural no necesita API key. La generación de planes en lenguaje natural sí requiere un checkpoint entrenado. PyTorch no se instala automáticamente y puede no estar disponible para Termux; los comandos de archivos y revisión de planes funcionan sin él.
 
-## Configurar un proveedor de IA
+## Configurar un proveedor de IA (opcional)
 
-MemeCode necesita una API compatible con OpenAI Chat Completions y llamadas a herramientas. Configura la clave solo en la sesión actual:
+La instalación y la TUI funcionan sin API key. Para configurar el proveedor desde la interfaz, escribe `/setup`. También puedes abrir el asistente desde una terminal normal:
+
+```sh
+memecode setup
+```
+
+MemeCode necesita una API compatible con OpenAI Chat Completions y llamadas a herramientas para ejecutar tareas con el agente remoto. Como alternativa, puedes configurar la clave solo en la sesión actual:
 
 ```sh
 export MEMECODE_API_KEY='TU_CLAVE'
@@ -79,3 +85,24 @@ No publiques ni compartas la clave. El uso de una API puede tener costos según 
 - Los comandos aprobados se ejecutan con los permisos de tu usuario.
 - Revisa cada cambio de archivo y cada comando antes de aprobarlo.
 - No entregues claves, contraseñas ni archivos secretos al agente.
+
+
+## Ubuntu mediante proot-distro
+
+Si ya tienes Ubuntu instalado dentro de Termux:
+
+```sh
+proot-distro login ubuntu
+apt update
+apt install -y git python3 python3-venv python3-pip curl
+curl -fsSL https://raw.githubusercontent.com/Reaccionador2Jeje/MemeCode/main/install.sh | sh
+source ~/.profile
+```
+
+Después, desde el directorio de tu proyecto:
+
+```sh
+memecode
+```
+
+El instalador añade Textual al entorno virtual de MemeCode. La TUI se ejecuta dentro de la terminal de Ubuntu; no necesita una interfaz gráfica de Android. Si el terminal no muestra colores correctamente, comprueba que `TERM` esté definido como `xterm-256color`.
