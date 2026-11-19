@@ -64,51 +64,14 @@ try {
         if ($LASTEXITCODE -ne 0) { Fail "No se pudo crear el entorno virtual." }
     }
     Say "Instalando o actualizando Memingo..."
-    & $venvPython -m pip install --upgrade (Join-Path $tempDir "Memingo")
+    & $venvPython -m pip install --upgrade (Join-Path $tempDir "Memingo") "textual>=0.80,<2"
     if ($LASTEXITCODE -ne 0) { Fail "No se pudo instalar Memingo." }
     & $venvPython -m py_compile (Join-Path $AppDir "runtime\agent.py") (Join-Path $AppDir "runtime\host_bridge.py") (Join-Path $AppDir "neural\agent.py") (Join-Path $AppDir "neural\planner.py")
     if ($LASTEXITCODE -ne 0) { Fail "Falló la comprobación de Python." }
     $memingoExe = Join-Path $AppDir ".venv\Scripts\memingo.exe"
     if (-not (Test-Path $memingoExe)) { Fail "Memingo no quedó disponible en el entorno virtual." }
 
-    $configDir = Join-Path $env:APPDATA "MemeCode"
-    $configFile = Join-Path $configDir ".env"
-    $currentModel = "gpt-4o-mini"
-    if (Test-Path $configFile) {
-        $modelLine = Get-Content $configFile | Where-Object { $_ -match '^MEMECODE_MODEL=' } | Select-Object -First 1
-        if ($modelLine) { $currentModel = ($modelLine -replace '^MEMECODE_MODEL=', '').Trim('"').Trim("'") }
-    }
-    $selectedModel = Read-Host "Modelo de IA [$currentModel] (Enter conserva el actual)"
-    if ([string]::IsNullOrWhiteSpace($selectedModel)) { $selectedModel = $currentModel }
-    if ($selectedModel -match '\s') { Fail "Nombre de modelo inválido. No uses espacios." }
-    Say "Abriendo la página oficial para crear tu API key..."
-    Start-Process "https://platform.openai.com/api-keys"
-    Say "Crea y copia tu API key. Después pégala en el siguiente campo oculto."
-    @'
-import getpass, json, os, pathlib, sys
-path = pathlib.Path(sys.argv[1])
-values = {"MEMECODE_API_KEY": "", "MEMECODE_MODEL": "gpt-4o-mini", "MEMECODE_BASE_URL": "https://api.openai.com/v1"}
-if path.is_file():
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if "=" in line and not line.startswith("#"):
-            key, value = line.split("=", 1)
-            if key in values:
-                value = value.strip()
-                if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-                    value = value[1:-1]
-                values[key] = value
-values["MEMECODE_MODEL"] = sys.argv[2]
-key = getpass.getpass("Pega MEMECODE_API_KEY (entrada oculta): ").strip()
-if key:
-    values["MEMECODE_API_KEY"] = key
-else:
-    print("No se introdujo una key; podrás configurarla después con: memecode setup")
-path.parent.mkdir(parents=True, exist_ok=True)
-path.write_text("# MemeCode private provider configuration. Do not share or commit.\n" + "".join(f"{k}={json.dumps(v)}\n" for k, v in values.items()), encoding="utf-8")
-print("Configuración guardada en:", path)
-'@ | & $venvPython - $configFile $selectedModel
-    if ($LASTEXITCODE -ne 0) { Fail "No se pudo guardar la configuración." }
+    Say "La configuración del proveedor es opcional. Puedes configurarla después desde la TUI con /setup o mediante: memecode setup" 
     Copy-Item -Force (Join-Path $PSScriptRoot "install.ps1") (Join-Path $AppDir "install.ps1")
     @'
 @echo off
