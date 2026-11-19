@@ -91,7 +91,7 @@ def filtered_environment() -> dict[str, str]:
         if key in allowed and not any(word in key.upper() for word in blocked_words)
     }
 
-def run_command(root: Path, argv: Sequence[str], timeout: int, approval_fn=None) -> int:
+def run_command(root: Path, argv: Sequence[str], timeout: int, approval_fn=None, output_fn=None) -> int:
     if not argv:
         raise WorkspaceError("Provide a command after --.")
     executable = Path(argv[0]).name.lower()
@@ -120,11 +120,17 @@ def run_command(root: Path, argv: Sequence[str], timeout: int, approval_fn=None)
         output = exc.stdout or ""
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
-        print(str(output)[-MAX_OUTPUT_CHARS:])
-        print(f"Command timed out after {timeout} seconds.")
+        message = str(output)[-MAX_OUTPUT_CHARS:] + f"\nCommand timed out after {timeout} seconds."
+        if output_fn is not None:
+            output_fn(message)
+        else:
+            print(message)
         return 124
-    print(result.stdout[-MAX_OUTPUT_CHARS:])
-    print(f"Exit code: {result.returncode}")
+    message = result.stdout[-MAX_OUTPUT_CHARS:] + f"\nExit code: {result.returncode}"
+    if output_fn is not None:
+        output_fn(message)
+    else:
+        print(message)
     return result.returncode
 
 def main() -> int:
