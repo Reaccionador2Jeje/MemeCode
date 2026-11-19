@@ -51,7 +51,7 @@ git clone --depth 1 --branch "$MEMINGO_BRANCH" "$MEMINGO_REPO" "$TMP_DIR/Memingo
 say "Preparando entorno Python aislado..."
 "$PYTHON" -m venv "$APP_DIR/.venv" || fail "No se pudo crear el entorno virtual. Comprueba que Python incluya venv."
 "$APP_DIR/.venv/bin/python" -m pip install --upgrade "$TMP_DIR/Memingo" "textual>=0.80,<2" || fail "No se pudieron instalar Memingo y la TUI."
-"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/runtime/agent.py" "$APP_DIR/runtime/host_bridge.py" "$APP_DIR/neural/agent.py" "$APP_DIR/neural/planner.py" || fail "Falló la comprobación de Python."
+"$APP_DIR/.venv/bin/python" -m py_compile "$APP_DIR/runtime/agent.py" "$APP_DIR/runtime/host_bridge.py" "$APP_DIR/runtime/tui.py" "$APP_DIR/neural/agent.py" "$APP_DIR/neural/planner.py" || fail "Falló la comprobación de Python."
 "$APP_DIR/.venv/bin/python" -m memingo --help >/dev/null 2>&1 || "$APP_DIR/.venv/bin/memingo" --help >/dev/null 2>&1 || fail "Memingo no quedó disponible."
 
 say "La configuración del proveedor es opcional. Puedes configurarla después desde la TUI con /setup o mediante: memecode setup"
