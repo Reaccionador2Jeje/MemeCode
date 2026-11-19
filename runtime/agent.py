@@ -116,8 +116,8 @@ def setup_provider_config(*, interactive: bool = True, force: bool = False) -> d
     print("Configuración guardada.")
     return values
 
-def provider_settings() -> dict[str, str]:
-    values = setup_provider_config(interactive=True)
+def provider_settings(*, interactive: bool = False) -> dict[str, str]:
+    values = setup_provider_config(interactive=interactive)
     return {
         "MEMECODE_API_KEY": os.environ.get("MEMECODE_API_KEY") or values.get("MEMECODE_API_KEY", ""),
         "MEMECODE_MODEL": os.environ.get("MEMECODE_MODEL") or values.get("MEMECODE_MODEL", "gpt-4o-mini"),
@@ -199,7 +199,9 @@ TOOLS = [
     {"type":"function","function":{"name":"run_command","description":"Run a command in the workspace after showing it and obtaining approval.","parameters":{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}},"timeout":{"type":"integer","minimum":1,"maximum":120}},"required":["argv"],"additionalProperties":False}}}
 ]
 
-def _approve(prompt: str) -> bool:
+def _approve(prompt: str, approval_fn=None) -> bool:
+    if approval_fn is not None:
+        return bool(approval_fn(prompt))
     try:
         return input(prompt + " [y/N] ").strip().lower() in {"y","yes"}
     except (EOFError, KeyboardInterrupt):
@@ -241,7 +243,7 @@ def git_readonly(root: Path, action: str) -> str:
         raise WorkspaceError(output or f"Git exited with code {result.returncode}.")
     return output or "(No output)"
 
-def git_mutation(root: Path, action: str, arguments: dict[str, Any]) -> str:
+def git_mutation(root: Path, action: str, arguments: dict[str, Any], approval_fn=None) -> str:
     """Perform narrowly scoped local Git changes only after interactive approval."""
     if not (root / ".git").exists():
         raise WorkspaceError("The workspace is not a Git repository.")
@@ -268,7 +270,7 @@ def git_mutation(root: Path, action: str, arguments: dict[str, Any]) -> str:
         if exists.returncode != 1:
             raise WorkspaceError("Could not check whether the branch exists.")
         print(f"\nMemeCode proposes creating local branch: {name}")
-        if not _approve("Create and switch to this branch?"):
+        if not _approve(f"Create and switch to local branch '{name}'?", approval_fn):
             return "User declined branch creation."
         result = subprocess.run(["git", "switch", "-c", name], cwd=root, env=environment,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -286,7 +288,7 @@ def git_mutation(root: Path, action: str, arguments: dict[str, Any]) -> str:
         print("\nMemeCode proposes this local commit:")
         print(staged.stdout[-GIT_OUTPUT_LIMIT:])
         print(f"Commit message: {message}")
-        if not _approve("Create this local commit?"):
+        if not _approve(f"Create this local commit '{message}'?", approval_fn):
             return "User declined commit creation."
         result = subprocess.run(["git", "commit", "-m", message], cwd=root, env=environment,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -330,7 +332,7 @@ def github_public_api(owner: str, repository: str, endpoint: str) -> str:
     return json.dumps({key: payload.get(key) for key in fields}, ensure_ascii=False)
 
 
-def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
+def dispatch_tool(root: Path, name: str, arguments: dict[str, Any], approval_fn=None) -> str:
     try:
         if name == "list_files":
             return json.dumps(list_files(root, arguments.get("path",".")), ensure_ascii=False)
@@ -339,9 +341,9 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
         if name in {"git_status", "git_diff", "git_log"}:
             return git_readonly(root, name.removeprefix("git_"))
         if name == "git_branch_create":
-            return git_mutation(root, "branch", arguments)
+            return git_mutation(root, "branch", arguments, approval_fn)
         if name == "git_commit":
-            return git_mutation(root, "commit", arguments)
+            return git_mutation(root, "commit", arguments, approval_fn)
         if name == "github_repo_info":
             return github_public_api(arguments["owner"], arguments["repo"], "")
         if name == "github_branches":
@@ -354,7 +356,7 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
             old_content = read_file(root, path) if target.exists() else ""
             print(f"\nMemeCode proposes writing: {path}")
             _show_diff(path, old_content, new_content)
-            if not _approve("Approve this file change?"):
+            if not _approve(f"Approve writing the proposed changes to '{path}'?", approval_fn):
                 return "User declined the file change."
             write_file(root, path, new_content)
             return f"Saved {path}"
@@ -362,7 +364,7 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any]) -> str:
             argv = arguments.get("argv", [])
             if not isinstance(argv, list) or not all(isinstance(x,str) for x in argv):
                 raise WorkspaceError("argv must be a list of strings.")
-            return f"Command exit code: {run_command(root, argv, int(arguments.get('timeout',30)))}"
+            return f"Command exit code: {run_command(root, argv, int(arguments.get('timeout',30)), approval_fn=approval_fn)}"
         raise AgentError(f"Unknown tool: {name}")
     except (KeyError, TypeError, ValueError, WorkspaceError, AgentError, OSError, UnicodeError) as exc:
         return f"Tool error: {exc}"
@@ -386,7 +388,7 @@ def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
     except (KeyError,IndexError,TypeError) as exc:
         raise AgentError("Provider response did not contain a chat completion.") from exc
 
-def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS, request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT) -> str:
+def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS, request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT, approval_fn=None) -> str:
     if not task.strip():
         raise AgentError("Task cannot be empty.")
     messages = [{"role":"system","content":system_prompt},{"role":"user","content":task.strip()}]
@@ -402,7 +404,7 @@ def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=
                 args = json.loads(fn.get("arguments") or "{}")
                 if not isinstance(args,dict):
                     raise ValueError("Tool arguments must be a JSON object.")
-                result = dispatch_tool(root,fn.get("name",""),args)
+                result = dispatch_tool(root,fn.get("name",""),args,approval_fn=approval_fn)
             except (json.JSONDecodeError,ValueError) as exc:
                 result = f"Invalid tool arguments: {exc}"
             messages.append({"role":"tool","tool_call_id":call.get("id",""),"content":str(result)[:MAX_TOOL_RESULT]})
@@ -474,7 +476,8 @@ def main() -> int:
     parser.add_argument("--max-steps",type=int,default=MAX_STEPS)
     parser.add_argument("--review",action="store_true",help="Run a bounded review/repair cycle")
     parser.add_argument("--max-repair-rounds",type=int,default=2,help="Review passes (1-3; default: 2)")
-    parser.add_argument("--chat",action="store_true",help="Start an interactive chat session")
+    parser.add_argument("--chat",action="store_true",help="Start the terminal UI")
+    parser.add_argument("--plain-chat",action="store_true",help="Use the basic line-oriented chat instead of the TUI")
     parser.add_argument("--save-history",action="store_true",help="Opt in to saving task summaries locally")
     parser.add_argument("--history",action="store_true",help="Show recent locally saved tasks")
     parser.add_argument("--setup",action="store_true",help="Create or edit private provider configuration")
@@ -493,7 +496,13 @@ def main() -> int:
             return 0
         if not args.chat and not args.task:
             parser.error("provide a task or use --chat")
-        settings = provider_settings()
+        if args.chat and not args.plain_chat:
+            try:
+                from .tui import run_tui
+            except ImportError:
+                from tui import run_tui
+            return run_tui(args.workspace)
+        settings = provider_settings(interactive=False)
         api_key = settings["MEMECODE_API_KEY"]
         if not api_key:
             print("MemeCode: falta MEMECODE_API_KEY. Ejecuta memecode setup.", file=sys.stderr)
