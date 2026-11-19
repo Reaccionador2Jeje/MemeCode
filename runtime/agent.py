@@ -401,7 +401,7 @@ def _response_text(content: Any) -> str:
                 parts.append(item)
             elif isinstance(item, dict) and isinstance(item.get("text"), str):
                 parts.append(item["text"])
-        return "\\n".join(part for part in parts if part).strip()
+        return "\n".join(part for part in parts if part).strip()
     return ""
 
 
@@ -535,7 +535,7 @@ def run_agent(task: str, root: Path, *, api_key: str, model: str,
                 )
             if message.get("_memecode_tool_support") is False:
                 content += (
-                    "\\n\\n[Modo compatibilidad: este modelo no admite llamadas a herramientas "
+                    "\n\n[Modo compatibilidad: este modelo no admite llamadas a herramientas "
                     "en este endpoint. MemeCode no ejecutó ni modificó archivos; esta respuesta es solo texto.]"
                 )
             return content
