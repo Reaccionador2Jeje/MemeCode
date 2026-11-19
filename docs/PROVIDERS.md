@@ -8,15 +8,15 @@ MemeCode selects its API protocol from the configured **API base URL**. Use the 
 
 For OpenAI and compatible gateways such as OpenRouter, Groq, Together, and DeepSeek, use the API root supplied by that provider. Typical shape:
 
-- Base URL: \`https://api.example.com/v1\`
+- Base URL: `https://api.example.com/v1`
 - Model: the exact model slug from the provider
 - API key: a key created with that provider
 
-Do not append \`/chat/completions\` unless the provider explicitly tells you to use the full endpoint; MemeCode accepts either the API root or the complete endpoint.
+Do not append `/chat/completions` unless the provider explicitly tells you to use the full endpoint; MemeCode accepts either the API root or the complete endpoint.
 
 ### Anthropic Messages API
 
-- Base URL: \`https://api.anthropic.com/v1\`
+- Base URL: `https://api.anthropic.com/v1`
 - Model: the exact Claude model ID enabled for the key
 - API key: Anthropic API key
 
@@ -24,18 +24,18 @@ MemeCode uses the native Messages API and converts tool schemas and tool results
 
 ### Google Gemini API
 
-- Base URL: \`https://generativelanguage.googleapis.com/v1beta\`
+- Base URL: `https://generativelanguage.googleapis.com/v1beta`
 - Model: the exact Gemini model ID enabled for the key, for example the current Flash or Pro model slug shown in Google AI Studio
 - API key: Google AI Studio API key
 
-MemeCode uses the native \`generateContent\` API and converts function declarations, calls, and results.
+MemeCode uses the native `generateContent` API and converts function declarations, calls, and results.
 
 ## Test before coding
 
 1. Open MemeCode.
-2. Type \`/setup\` and enter the provider's base URL, exact model ID, and API key.
+2. Type `/setup` and enter the provider's base URL, exact model ID, and API key.
 3. Save the configuration.
-4. Type \`/test\`.
+4. Type `/test`.
 
 The connection test sends a small text-only request. It checks the endpoint, authentication, model access, and response format without running project tools.
 
