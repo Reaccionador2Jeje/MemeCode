@@ -50,7 +50,7 @@ class ProviderScreen(ModalScreen[dict[str, str] | None]):
 
     def __init__(self) -> None:
         super().__init__()
-        self.values = agent.provider_settings(interactive=False)
+        self.values = agent._read_config(agent.config_file())
 
     def compose(self) -> ComposeResult:
         with Container(id="provider-box"):
@@ -123,7 +123,7 @@ class MemeCodeApp(App[None]):
 
     def write_message(self, author: str, message: str, css_class: str) -> None:
         panel = self.query_one("#messages", VerticalScroll)
-        panel.mount(Static(f"[b]{author}[/b]\n{message}", classes=f"message {css_class}"))
+        panel.mount(Static(f"{author}\n{message}", classes=f"message {css_class}", markup=False))
         panel.scroll_end(animate=False)
 
     @on(Input.Submitted, "#prompt")
@@ -192,12 +192,16 @@ class MemeCodeApp(App[None]):
                 base_url=settings["MEMECODE_BASE_URL"],
                 system_prompt=system_prompt,
                 approval_fn=self.request_approval,
+                output_fn=self.report_output,
             )
             self.call_from_thread(self.write_message, "MemeCode", answer or "(Sin respuesta)", "agent-message")
         except Exception as exc:
             self.call_from_thread(self.write_message, "Error", str(exc), "system-message")
         finally:
             self.call_from_thread(self._task_finished)
+
+    def report_output(self, message: str) -> None:
+        self.call_from_thread(self.write_message, "Salida de comando", message, "system-message")
 
     def _task_finished(self) -> None:
         self.busy = False
