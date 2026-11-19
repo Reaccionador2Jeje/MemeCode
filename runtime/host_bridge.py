@@ -91,7 +91,7 @@ def filtered_environment() -> dict[str, str]:
         if key in allowed and not any(word in key.upper() for word in blocked_words)
     }
 
-def run_command(root: Path, argv: Sequence[str], timeout: int) -> int:
+def run_command(root: Path, argv: Sequence[str], timeout: int, approval_fn=None) -> int:
     if not argv:
         raise WorkspaceError("Provide a command after --.")
     executable = Path(argv[0]).name.lower()
@@ -99,9 +99,14 @@ def run_command(root: Path, argv: Sequence[str], timeout: int) -> int:
         raise WorkspaceError(f"Command '{executable}' is blocked by default.")
     if any("\x00" in part for part in argv):
         raise WorkspaceError("NUL bytes are not allowed in command arguments.")
-    print("Command to execute:\n$ " + shlex.join(argv))
-    print(f"Working directory: {root}")
-    if input("Approve this command? [y/N] ").strip().lower() not in {"y", "yes"}:
+    command_text = f"Run command in {root}:\n$ " + shlex.join(argv)
+    if approval_fn is not None:
+        approved = bool(approval_fn(command_text))
+    else:
+        print("Command to execute:\n$ " + shlex.join(argv))
+        print(f"Working directory: {root}")
+        approved = input("Approve this command? [y/N] ").strip().lower() in {"y", "yes"}
+    if not approved:
         print("Cancelled.")
         return 2
     try:
