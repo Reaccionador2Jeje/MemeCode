@@ -20,7 +20,8 @@ except ImportError:
 class ApprovalScreen(ModalScreen[bool]):
     CSS = """
     ApprovalScreen { align: center middle; }
-    #approval-box { width: 90%; max-width: 64; height: auto; border: round $warning; padding: 1 2; background: $surface; }
+    #approval-box { width: 92%; max-width: 72; height: 82%; border: round $warning; padding: 1 2; background: $surface; }
+    #approval-details { height: 1fr; }
     #approval-actions { height: 3; align-horizontal: right; }
     """
 
@@ -31,7 +32,8 @@ class ApprovalScreen(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         with Container(id="approval-box"):
             yield Label("MemeCode necesita tu autorización")
-            yield Static(self.prompt, markup=False)
+            with VerticalScroll(id="approval-details"):
+                yield Static(self.prompt, markup=False)
             with Horizontal(id="approval-actions"):
                 yield Button("Rechazar", id="deny")
                 yield Button("Aprobar", id="approve", variant="success")
