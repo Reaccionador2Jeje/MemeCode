@@ -629,6 +629,41 @@ def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
     those request-shape incompatibilities; authentication, quota and model
     errors are returned immediately with a readable provider message.
     """
+    if not api_key.strip():
+        raise AgentError("Falta la API key. Configúrala en /setup.")
+    if not model.strip():
+        raise AgentError("Falta el identificador del modelo. Configúralo en /setup.")
+
+    lowered_url = base_url.lower()
+    if "api.anthropic.com" in lowered_url or lowered_url.rstrip("/").endswith("/messages"):
+        try:
+            message = _anthropic_request(messages, api_key=api_key, model=model,
+                                         base_url=base_url, tools_enabled=tools_enabled)
+        except AgentError as exc:
+            if tools_enabled and "http 400" in str(exc).lower() and any(
+                word in str(exc).lower() for word in ("tool", "function")
+            ):
+                message = _anthropic_request(messages, api_key=api_key, model=model,
+                                             base_url=base_url, tools_enabled=False)
+                message["_memecode_tool_support"] = False
+            else:
+                raise
+        return message
+    if "generativelanguage.googleapis.com" in lowered_url or ":generatecontent" in lowered_url:
+        try:
+            message = _gemini_request(messages, api_key=api_key, model=model,
+                                      base_url=base_url, tools_enabled=tools_enabled)
+        except AgentError as exc:
+            if tools_enabled and "http 400" in str(exc).lower() and any(
+                word in str(exc).lower() for word in ("tool", "function")
+            ):
+                message = _gemini_request(messages, api_key=api_key, model=model,
+                                          base_url=base_url, tools_enabled=False)
+                message["_memecode_tool_support"] = False
+            else:
+                raise
+        return message
+
     endpoint = _chat_completions_url(base_url)
     if not api_key.strip():
         raise AgentError("Falta la API key. Configúrala en /setup.")
