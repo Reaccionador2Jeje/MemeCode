@@ -378,45 +378,184 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any], approval_fn=
     except (KeyError, TypeError, ValueError, WorkspaceError, AgentError, OSError, UnicodeError) as exc:
         return f"Tool error: {exc}"
 
-def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str, base_url: str) -> dict[str,Any]:
-    body = json.dumps({"model":model,"messages":messages,"tools":TOOLS,"tool_choice":"auto","temperature":0.2}).encode("utf-8")
-    request = urllib.request.Request(
-        base_url.rstrip("/") + "/chat/completions", data=body,
-        headers={"Authorization":"Bearer "+api_key,"Content-Type":"application/json","User-Agent":"MemeCode/0.1"},
-        method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read(2000).decode("utf-8",errors="replace")
-        raise AgentError(f"Provider returned HTTP {exc.code}: {detail}") from exc
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise AgentError(f"Could not contact model provider: {exc}") from exc
-    try:
-        return payload["choices"][0]["message"]
-    except (KeyError,IndexError,TypeError) as exc:
-        raise AgentError("Provider response did not contain a chat completion.") from exc
+def _chat_completions_url(base_url: str) -> str:
+    """Accept either an API base URL or the complete chat-completions endpoint."""
+    value = base_url.strip().rstrip("/")
+    if not value.startswith(("https://", "http://")):
+        raise AgentError("La URL del proveedor debe comenzar con https:// o http://.")
+    if value.endswith("/chat/completions"):
+        return value
+    if value.endswith("/v1"):
+        return value + "/chat/completions"
+    return value + "/chat/completions"
 
-def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS, request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT, approval_fn=None, output_fn=None) -> str:
+
+def _response_text(content: Any) -> str:
+    """Normalize common text response shapes into plain text."""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "\\n".join(part for part in parts if part).strip()
+    return ""
+
+
+def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
+                     base_url: str, tools_enabled: bool = True) -> dict[str,Any]:
+    """Call an OpenAI-compatible endpoint with compatibility fallbacks.
+
+    Some providers/models reject temperature or function calling. Retry only
+    those request-shape incompatibilities; authentication, quota and model
+    errors are returned immediately with a readable provider message.
+    """
+    endpoint = _chat_completions_url(base_url)
+    if not api_key.strip():
+        raise AgentError("Falta la API key. Configúrala en /setup.")
+    if not model.strip():
+        raise AgentError("Falta el identificador del modelo. Configúralo en /setup.")
+
+    variants = []
+    if tools_enabled:
+        variants.append((True, True))
+        variants.append((True, False))
+    variants.append((False, False))
+    last_error = None
+
+    for include_tools, include_temperature in variants:
+        body_data: dict[str, Any] = {
+            "model": model.strip(),
+            "messages": messages,
+            "stream": False,
+        }
+        if include_tools:
+            body_data["tools"] = TOOLS
+            body_data["tool_choice"] = "auto"
+        if include_temperature:
+            body_data["temperature"] = 0.2
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body_data).encode("utf-8"),
+            headers={
+                "Authorization": "Bearer " + api_key.strip(),
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "MemeCode/0.4",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=90) as response:
+                raw = response.read(2_000_000).decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise AgentError("El proveedor respondió, pero no devolvió JSON válido. Comprueba que la URL sea el endpoint API correcto.") from exc
+        except urllib.error.HTTPError as exc:
+            detail = exc.read(4000).decode("utf-8", errors="replace")
+            try:
+                error_payload = json.loads(detail)
+                error_value = error_payload.get("error", error_payload)
+                if isinstance(error_value, dict):
+                    detail = str(error_value.get("message") or error_value.get("detail") or detail)
+            except (json.JSONDecodeError, AttributeError):
+                pass
+            last_error = (exc.code, detail[:1200])
+            compatibility_error = exc.code in {400, 422} and any(
+                word in detail.lower()
+                for word in ("temperature", "tool_choice", "tool call", "tool_calls",
+                             "tools", "function calling", "unsupported parameter",
+                             "not support", "unknown parameter", "unrecognized")
+            )
+            if compatibility_error:
+                continue
+            raise AgentError(f"El proveedor rechazó la solicitud (HTTP {exc.code}): {detail[:1200]}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise AgentError(f"No se pudo conectar con el proveedor. Revisa internet y la URL API. Detalle: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise AgentError("El proveedor devolvió un formato inesperado (se esperaba un objeto JSON).")
+        if isinstance(payload.get("error"), dict):
+            error = payload["error"]
+            raise AgentError(f"Error del proveedor: {error.get('message') or error.get('type') or 'respuesta de error sin detalle'}")
+        try:
+            choices = payload.get("choices")
+            message = choices[0].get("message") if isinstance(choices, list) and choices else None
+        except (AttributeError, IndexError, TypeError):
+            message = None
+        if not isinstance(message, dict):
+            finish = ""
+            try:
+                finish = str(payload.get("choices", [{}])[0].get("finish_reason") or "")
+            except (AttributeError, IndexError, TypeError):
+                pass
+            raise AgentError(
+                "El proveedor respondió, pero no incluyó choices[0].message. "
+                f"Revisa que uses una API compatible con OpenAI Chat Completions. Motivo: {finish or 'formato desconocido'}."
+            )
+        normalized = dict(message)
+        normalized["content"] = _response_text(message.get("content"))
+        if not include_tools:
+            normalized["_memecode_tool_support"] = False
+        elif not message.get("tool_calls") and message.get("content") is None:
+            normalized["content"] = ""
+        return normalized
+
+    code, detail = last_error or (400, "Parámetros incompatibles.")
+    raise AgentError(
+        f"El modelo rechazó los formatos de solicitud compatibles (HTTP {code}): {detail}. "
+        "Comprueba el ID exacto del modelo y si el proveedor admite Chat Completions."
+    )
+
+
+def run_agent(task: str, root: Path, *, api_key: str, model: str,
+              base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS,
+              request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT,
+              approval_fn=None, output_fn=None) -> str:
     if not task.strip():
         raise AgentError("Task cannot be empty.")
     messages = [{"role":"system","content":system_prompt},{"role":"user","content":task.strip()}]
     for _ in range(max_steps):
-        message = request_fn(messages,api_key=api_key,model=model,base_url=base_url)
-        messages.append(message)
+        message = request_fn(messages, api_key=api_key, model=model, base_url=base_url)
+        if not isinstance(message, dict):
+            raise AgentError("El adaptador del proveedor devolvió una respuesta inválida.")
         tool_calls = message.get("tool_calls") or []
+        safe_message = {key: value for key, value in message.items() if not key.startswith("_memecode_")}
+        messages.append(safe_message)
+        content = _response_text(message.get("content"))
         if not tool_calls:
-            return str(message.get("content") or "")
-        for call in tool_calls:
-            fn = call.get("function",{})
+            if not content:
+                raise AgentError(
+                    "El modelo respondió sin texto ni herramientas. Puede ser un ID de modelo incorrecto, "
+                    "un límite de tokens o un modelo que no admite este endpoint."
+                )
+            if message.get("_memecode_tool_support") is False:
+                content += (
+                    "\\n\\n[Modo compatibilidad: este modelo no admite llamadas a herramientas "
+                    "en este endpoint. MemeCode no ejecutó ni modificó archivos; esta respuesta es solo texto.]"
+                )
+            return content
+        for index, call in enumerate(tool_calls):
+            if not isinstance(call, dict):
+                raise AgentError("El proveedor devolvió una llamada a herramienta con formato inválido.")
+            fn = call.get("function") or {}
+            if not isinstance(fn, dict):
+                raise AgentError("El proveedor devolvió una función con formato inválido.")
+            raw_args = fn.get("arguments") or "{}"
             try:
-                args = json.loads(fn.get("arguments") or "{}")
-                if not isinstance(args,dict):
+                args = raw_args if isinstance(raw_args, dict) else json.loads(raw_args)
+                if not isinstance(args, dict):
                     raise ValueError("Tool arguments must be a JSON object.")
-                result = dispatch_tool(root,fn.get("name",""),args,approval_fn=approval_fn,output_fn=output_fn)
-            except (json.JSONDecodeError,ValueError) as exc:
+                result = dispatch_tool(root, fn.get("name", ""), args,
+                                       approval_fn=approval_fn, output_fn=output_fn)
+            except (json.JSONDecodeError, ValueError) as exc:
                 result = f"Invalid tool arguments: {exc}"
-            messages.append({"role":"tool","tool_call_id":call.get("id",""),"content":str(result)[:MAX_TOOL_RESULT]})
+            call_id = str(call.get("id") or f"memecode_call_{index}")
+            messages.append({"role":"tool","tool_call_id":call_id,"content":str(result)[:MAX_TOOL_RESULT]})
     raise AgentError(f"Agent reached the {max_steps}-step limit without a final answer.")
 
 def run_review_cycle(task: str, root: Path, *, api_key: str, model: str,
