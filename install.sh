@@ -6,8 +6,11 @@ REPO="https://github.com/Reaccionador2Jeje/MemeCode.git"
 MEMINGO_REPO="https://github.com/Reaccionador2Jeje/Memingo.git"
 MEMINGO_BRANCH="feat/arch-aur-packaging"
 APP_DIR="${MEMECODE_HOME:-$HOME/.local/share/memecode}"
-BIN_DIR="${PREFIX:+$PREFIX/bin}"
-BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
+if [ -n "${TERMUX_VERSION:-}" ] && [ -n "${PREFIX:-}" ] && [ -d "$PREFIX/bin" ]; then
+  BIN_DIR="$PREFIX/bin"
+else
+  BIN_DIR="$HOME/.local/bin"
+fi
 ACTION="${1:-install}"
 
 say() { printf '\n[MemeCode] %s\n' "$*"; }
