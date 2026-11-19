@@ -107,7 +107,10 @@ def run_command(root: Path, argv: Sequence[str], timeout: int, approval_fn=None,
         print(f"Working directory: {root}")
         approved = input("Approve this command? [y/N] ").strip().lower() in {"y", "yes"}
     if not approved:
-        print("Cancelled.")
+        if output_fn is not None:
+            output_fn("Command cancelled by user.")
+        else:
+            print("Cancelled.")
         return 2
     try:
         result = subprocess.run(
