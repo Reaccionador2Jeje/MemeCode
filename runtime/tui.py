@@ -230,7 +230,7 @@ class MemeCodeApp(App[None]):
                 raise agent.AgentError("El proveedor respondió sin texto.")
             self.call_from_thread(
                 self.write_message, "Prueba de conexión",
-                f"Conexión correcta. Modelo: {settings['MEMECODE_MODEL']}\\nRespuesta: {answer}",
+                f"Conexión correcta. Modelo: {settings['MEMECODE_MODEL']}\nRespuesta: {answer}",
                 "system-message",
             )
         except Exception as exc:
