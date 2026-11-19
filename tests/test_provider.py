@@ -122,7 +122,8 @@ class ProviderCompatibilityTests(unittest.TestCase):
             )
         request = open_url.call_args.args[0]
         body = json.loads(request.data)
-        self.assertIn("/models/gemini-test:generateContent?key=gemini-key", request.full_url)
+        self.assertIn("/models/gemini-test:generateContent", request.full_url)
+        self.assertEqual(request.get_header("X-goog-api-key"), "gemini-key")
         self.assertEqual(body["systemInstruction"]["parts"][0]["text"], "Be concise.")
         self.assertIn("tools", body)
         self.assertEqual(result["content"], "Gemini works")
