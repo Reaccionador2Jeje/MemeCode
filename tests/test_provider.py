@@ -94,6 +94,52 @@ class ProviderCompatibilityTests(unittest.TestCase):
         self.assertNotIn("tools", third_body)
         self.assertNotIn("temperature", third_body)
 
+    def test_native_anthropic_messages_api(self):
+        payload = {"content": [{"type": "text", "text": "Anthropic works"}]}
+        with patch("runtime.agent.urllib.request.urlopen", return_value=ok_response(payload)) as open_url:
+            result = provider_request(
+                [{"role": "system", "content": "Be concise."},
+                 {"role": "user", "content": "Hi"}],
+                api_key="anthropic-key", model="claude-test",
+                base_url="https://api.anthropic.com/v1",
+            )
+        request = open_url.call_args.args[0]
+        body = json.loads(request.data)
+        self.assertEqual(request.full_url, "https://api.anthropic.com/v1/messages")
+        self.assertEqual(request.get_header("X-api-key"), "anthropic-key")
+        self.assertEqual(body["system"], "Be concise.")
+        self.assertIn("tools", body)
+        self.assertEqual(result["content"], "Anthropic works")
+
+    def test_native_gemini_generate_content_api(self):
+        payload = {"candidates": [{"content": {"parts": [{"text": "Gemini works"}]}}]}
+        with patch("runtime.agent.urllib.request.urlopen", return_value=ok_response(payload)) as open_url:
+            result = provider_request(
+                [{"role": "system", "content": "Be concise."},
+                 {"role": "user", "content": "Hi"}],
+                api_key="gemini-key", model="gemini-test",
+                base_url="https://generativelanguage.googleapis.com/v1beta",
+            )
+        request = open_url.call_args.args[0]
+        body = json.loads(request.data)
+        self.assertIn("/models/gemini-test:generateContent?key=gemini-key", request.full_url)
+        self.assertEqual(body["systemInstruction"]["parts"][0]["text"], "Be concise.")
+        self.assertIn("tools", body)
+        self.assertEqual(result["content"], "Gemini works")
+
+    def test_gemini_function_calls_are_normalized(self):
+        payload = {"candidates": [{"content": {"parts": [{
+            "functionCall": {"name": "list_files", "args": {"path": "."}}
+        }]}}]}
+        with patch("runtime.agent.urllib.request.urlopen", return_value=ok_response(payload)):
+            result = provider_request(
+                [{"role": "user", "content": "List files"}],
+                api_key="gemini-key", model="gemini-test",
+                base_url="https://generativelanguage.googleapis.com/v1beta",
+            )
+        self.assertEqual(result["tool_calls"][0]["function"]["name"], "list_files")
+        self.assertEqual(json.loads(result["tool_calls"][0]["function"]["arguments"]), {"path": "."})
+
     def test_provider_error_is_readable_and_does_not_retry_auth(self):
         with patch(
             "runtime.agent.urllib.request.urlopen",
