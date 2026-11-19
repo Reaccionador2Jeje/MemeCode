@@ -269,7 +269,8 @@ def git_mutation(root: Path, action: str, arguments: dict[str, Any], approval_fn
             raise WorkspaceError("Branch already exists.")
         if exists.returncode != 1:
             raise WorkspaceError("Could not check whether the branch exists.")
-        print(f"\nMemeCode proposes creating local branch: {name}")
+        if approval_fn is None:
+            print(f"\nMemeCode proposes creating local branch: {name}")
         if not _approve(f"Create and switch to local branch '{name}'?", approval_fn):
             return "User declined branch creation."
         result = subprocess.run(["git", "switch", "-c", name], cwd=root, env=environment,
@@ -285,10 +286,12 @@ def git_mutation(root: Path, action: str, arguments: dict[str, Any], approval_fn
                                 text=True, timeout=10, check=False)
         if staged.returncode or not staged.stdout.strip():
             raise WorkspaceError("No staged changes to commit. Stage files manually first.")
-        print("\nMemeCode proposes this local commit:")
-        print(staged.stdout[-GIT_OUTPUT_LIMIT:])
-        print(f"Commit message: {message}")
-        if not _approve(f"Create this local commit '{message}'?", approval_fn):
+        approval_text = f"Create local commit '{message}' with these staged changes?\n\n{staged.stdout[-6000:]}"
+        if approval_fn is None:
+            print("\nMemeCode proposes this local commit:")
+            print(staged.stdout[-GIT_OUTPUT_LIMIT:])
+            print(f"Commit message: {message}")
+        if not _approve(approval_text, approval_fn):
             return "User declined commit creation."
         result = subprocess.run(["git", "commit", "-m", message], cwd=root, env=environment,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -332,7 +335,7 @@ def github_public_api(owner: str, repository: str, endpoint: str) -> str:
     return json.dumps({key: payload.get(key) for key in fields}, ensure_ascii=False)
 
 
-def dispatch_tool(root: Path, name: str, arguments: dict[str, Any], approval_fn=None) -> str:
+def dispatch_tool(root: Path, name: str, arguments: dict[str, Any], approval_fn=None, output_fn=None) -> str:
     try:
         if name == "list_files":
             return json.dumps(list_files(root, arguments.get("path",".")), ensure_ascii=False)
@@ -354,9 +357,15 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any], approval_fn=
             if target.exists() and target.is_dir():
                 raise WorkspaceError("Cannot replace a directory with a file.")
             old_content = read_file(root, path) if target.exists() else ""
-            print(f"\nMemeCode proposes writing: {path}")
-            _show_diff(path, old_content, new_content)
-            if not _approve(f"Approve writing the proposed changes to '{path}'?", approval_fn):
+            diff_lines = list(difflib.unified_diff(old_content.splitlines(), new_content.splitlines(), fromfile="a/"+path, tofile="b/"+path, lineterm=""))
+            diff_text = "\n".join(diff_lines[:180]) if diff_lines else "(No changes)"
+            if len(diff_lines) > 180:
+                diff_text += f"\n... diff truncated ({len(diff_lines)} total lines)"
+            approval_text = f"Proposed changes to {path}:\n\n{diff_text}"
+            if approval_fn is None:
+                print(f"\nMemeCode proposes writing: {path}")
+                _show_diff(path, old_content, new_content)
+            if not _approve(approval_text, approval_fn):
                 return "User declined the file change."
             write_file(root, path, new_content)
             return f"Saved {path}"
@@ -364,7 +373,7 @@ def dispatch_tool(root: Path, name: str, arguments: dict[str, Any], approval_fn=
             argv = arguments.get("argv", [])
             if not isinstance(argv, list) or not all(isinstance(x,str) for x in argv):
                 raise WorkspaceError("argv must be a list of strings.")
-            return f"Command exit code: {run_command(root, argv, int(arguments.get('timeout',30)), approval_fn=approval_fn)}"
+            return f"Command exit code: {run_command(root, argv, int(arguments.get('timeout',30)), approval_fn=approval_fn, output_fn=output_fn)}"
         raise AgentError(f"Unknown tool: {name}")
     except (KeyError, TypeError, ValueError, WorkspaceError, AgentError, OSError, UnicodeError) as exc:
         return f"Tool error: {exc}"
@@ -388,7 +397,7 @@ def provider_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
     except (KeyError,IndexError,TypeError) as exc:
         raise AgentError("Provider response did not contain a chat completion.") from exc
 
-def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS, request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT, approval_fn=None) -> str:
+def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=DEFAULT_BASE_URL, max_steps: int=MAX_STEPS, request_fn=provider_request, system_prompt: str=DEFAULT_SYSTEM_PROMPT, approval_fn=None, output_fn=None) -> str:
     if not task.strip():
         raise AgentError("Task cannot be empty.")
     messages = [{"role":"system","content":system_prompt},{"role":"user","content":task.strip()}]
@@ -404,7 +413,7 @@ def run_agent(task: str, root: Path, *, api_key: str, model: str, base_url: str=
                 args = json.loads(fn.get("arguments") or "{}")
                 if not isinstance(args,dict):
                     raise ValueError("Tool arguments must be a JSON object.")
-                result = dispatch_tool(root,fn.get("name",""),args,approval_fn=approval_fn)
+                result = dispatch_tool(root,fn.get("name",""),args,approval_fn=approval_fn,output_fn=output_fn)
             except (json.JSONDecodeError,ValueError) as exc:
                 result = f"Invalid tool arguments: {exc}"
             messages.append({"role":"tool","tool_call_id":call.get("id",""),"content":str(result)[:MAX_TOOL_RESULT]})
