@@ -126,6 +126,9 @@ class ProviderCompatibilityTests(unittest.TestCase):
         self.assertEqual(request.get_header("X-goog-api-key"), "gemini-key")
         self.assertEqual(body["systemInstruction"]["parts"][0]["text"], "Be concise.")
         self.assertIn("tools", body)
+        declarations = body["tools"][0]["functionDeclarations"]
+        self.assertEqual(declarations[0]["parameters"]["type"], "OBJECT")
+        self.assertNotIn("additionalProperties", declarations[0]["parameters"])
         self.assertEqual(result["content"], "Gemini works")
 
     def test_gemini_function_calls_are_normalized(self):
