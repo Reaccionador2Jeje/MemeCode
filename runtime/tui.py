@@ -57,10 +57,10 @@ class ProviderScreen(ModalScreen[dict[str, str] | None]):
     def compose(self) -> ComposeResult:
         with Container(id="provider-box"):
             yield Label("Configuración del proveedor (opcional)")
-            yield Static("Puedes dejar la API key vacía y configurarla más tarde.")
+            yield Static("El protocolo se detecta automáticamente según la URL: OpenAI-compatible, Anthropic o Gemini. Usa /test después de guardar.")
             yield Label("Modelo")
             yield Input(value=self.values.get("MEMECODE_MODEL", "gpt-4o-mini"), id="model")
-            yield Label("API base URL")
+            yield Label("API base URL (detección automática)")
             yield Input(value=self.values.get("MEMECODE_BASE_URL", agent.DEFAULT_BASE_URL), id="base-url")
             yield Label("API key (entrada oculta)")
             yield Input(value=self.values.get("MEMECODE_API_KEY", ""), password=True, id="api-key")
