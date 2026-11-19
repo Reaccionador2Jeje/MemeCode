@@ -102,7 +102,14 @@ MemeCode opens its terminal UI without requiring a model or API key. The provide
 memecode setup
 ```
 
-The TUI also works before a provider is configured; you can browse its interface and set up the provider later.
+The TUI also works before a provider is configured; you can browse its interface and set up the provider later. Use `/test` inside the TUI to verify the API key, model ID, endpoint, and a real text response before asking the agent to edit a project.
+
+MemeCode detects three API protocols from the base URL:
+- **OpenAI-compatible Chat Completions** (OpenAI, OpenRouter, Groq, Together, DeepSeek and compatible gateways): use the provider's API root, usually ending in `/v1`.
+- **Anthropic Messages API**: use `https://api.anthropic.com/v1`.
+- **Google Gemini generateContent API**: use `https://generativelanguage.googleapis.com/v1beta`.
+
+Use the exact model ID shown by the provider dashboard. MemeCode retries compatible request formats when a model rejects optional temperature or tool-calling parameters. If a model only supports text generation, it falls back to text-only mode and clearly warns that no project files or commands were executed. See [docs/PROVIDERS.md](docs/PROVIDERS.md) for setup examples and troubleshooting.
 
 The configuration uses these exact variable names:
 
@@ -185,7 +192,7 @@ See [docs/MIGRATION_MEMINGO.md](docs/MIGRATION_MEMINGO.md) for scope and migrati
 - `src/memecode_core.mgo`: new read-only MemeCode 2.0 core written in Memingo.
 - `src/main.mgo` and `src/agent_core.mgo`: previous Memingo entry point and policy.
 - `runtime/host_bridge.py`: workspace-scoped file and command bridge.
-- `runtime/agent.py`: model adapter, tool loop, approvals, Git/GitHub tools, review cycle, chat, and history.
+- `runtime/agent.py`: multi-protocol model adapters, compatibility fallbacks, tool loop, approvals, Git/GitHub tools, review cycle, chat, and history.\n- `docs/PROVIDERS.md`: supported provider protocols, setup examples, and diagnostics.
 - `install.sh`: Termux, Linux, and macOS installer.
 - `runtime/tui.py`: Textual terminal interface, including interactive approval dialogs.
 - `requirements.txt`: TUI dependency.
