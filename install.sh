@@ -93,7 +93,7 @@ case "${1:-}" in
     ;;
   help|-h|--help)
     echo "Uso: memecode [setup|doctor|neural|update|uninstall|--chat|tarea...]"
-    echo "Sin argumentos: abre el chat en la carpeta actual."
+    echo "Sin argumentos: abre la TUI en la carpeta actual."
     echo "Ejemplo: memecode --workspace . 'Revisa este proyecto'"
     ;;
   "")
