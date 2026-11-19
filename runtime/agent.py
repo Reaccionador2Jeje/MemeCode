@@ -13,7 +13,7 @@ import sys
 import urllib.error
 import urllib.request
 import re
-from urllib.parse import quote, urlencode
+from urllib.parse import quote
 from pathlib import Path
 from typing import Any
 
@@ -587,16 +587,27 @@ def _gemini_request(messages: list[dict[str,Any]], *, api_key: str, model: str,
     if system_parts:
         body["systemInstruction"] = {"parts": system_parts}
     if tools_enabled:
+        def gemini_schema(schema: dict[str, Any]) -> dict[str, Any]:
+            return {
+                key: (gemini_schema(value) if isinstance(value, dict) else
+                      [gemini_schema(entry) if isinstance(entry, dict) else entry for entry in value]
+                      if isinstance(value, list) else value)
+                for key, value in schema.items()
+                if key != "additionalProperties"
+            }
         body["tools"] = [{
             "functionDeclarations": [{
                 "name": item["function"]["name"],
                 "description": item["function"].get("description", ""),
-                "parameters": item["function"]["parameters"],
+                "parameters": gemini_schema(item["function"]["parameters"]),
             } for item in TOOLS]
         }]
-    payload = _post_json(endpoint + ("&" if "?" in endpoint else "?") + urlencode({"key": api_key.strip()}),
-                         body, {"content-type": "application/json", "accept": "application/json",
-                                "user-agent": "MemeCode/0.4"})
+    payload = _post_json(endpoint, body, {
+        "content-type": "application/json",
+        "accept": "application/json",
+        "x-goog-api-key": api_key.strip(),
+        "user-agent": "MemeCode/0.4",
+    })
     candidates = payload.get("candidates") or []
     if not candidates or not isinstance(candidates[0], dict):
         raise AgentError("Gemini respondió sin candidates. Comprueba el modelo y el acceso habilitado para tu API key.")
